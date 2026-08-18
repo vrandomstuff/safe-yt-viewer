@@ -1,10 +1,10 @@
 import { pgTable, timestamp, varchar } from "drizzle-orm/pg-core";
 
 export const channels = pgTable("channels", {
-  name: varchar({ length: 255 }).notNull().unique(),
-  channelId: varchar({ length: 24 }).notNull().primaryKey(),
-  handle: varchar({ length: 255 }).notNull().unique(),
-  avatarUrl: varchar({ length: 255 }).notNull()
+	name: varchar({ length: 255 }).notNull().unique(),
+	channelId: varchar({ length: 24 }).notNull().primaryKey(),
+	handle: varchar({ length: 255 }).notNull().unique(),
+	avatarUrl: varchar({ length: 255 }).notNull()
 })
 
 export const videoCache = pgTable("videoCache", {
@@ -17,7 +17,7 @@ export const videoCache = pgTable("videoCache", {
 })
 
 export const watchData = pgTable("watchData", {
-	videoId: varchar({ length: 11}).notNull(),
+	videoId: varchar({ length: 11 }).notNull(),
 	title: varchar({ length: 255 }).notNull(),
 	eventDate: timestamp({ withTimezone: true }).notNull().primaryKey().defaultNow()
 })

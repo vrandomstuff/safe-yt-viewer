@@ -18,14 +18,13 @@ export default async function VideoList({ page }: pageType ) {
 		{videos.map(video => {
 			const channel = channelById.get(video.uploaderId)
 			return (
-				<a className="" href={`/watch/${video.videoId}`}>
-					<img key={video.videoId} src={video.thumbnailURL} alt={`Thumbnail for the video: ${video.title}`} crossOrigin="anonymous"/>
+				<a key={video.videoId} className="" href={`/watch/${video.videoId}`}>
+					<img src={video.thumbnailURL} alt={`Thumbnail for the video: ${video.title}`} crossOrigin="anonymous"/>
 					<br/>
 					{video.title}
 					<br/>
 					<a href={`/channel/${channel?.channelId}`}> {/*TODO: /channel page to show the videos for one channel*/}
 						<img
-							key={video.videoId}
 							style = {{
 								width: '50px',
 								height: '50px',

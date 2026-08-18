@@ -39,7 +39,7 @@ export default async function YTEmbed({ id }: YTEmbedProps) {
 				style={{ border: 0, height: '100vh', width: '100vw' }}
 			/>
 			<Link href="/">
-				<img src="/home_icon.png" style={{ width: 48, height: 48 }} />
+				<img src="/home_icon.png" alt="Go home." style={{ width: 48, height: 48 }} />
 			</Link>
 		</>
 	)

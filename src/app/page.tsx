@@ -10,8 +10,8 @@ export default async function Page({
 	return (<>
 			<VideoList page={pageNum}/>
 			<p>
-				<a href={`/?page=${pageNum === 1 ? pageNum : pageNum - 1 }`/* this makes it go to page 1 when it is on page one*/} style={{fontSize: 50}}>&lt;- </a>
-				<a href={`/?page=${pageNum + 1}`} style={{fontSize: 50}}> -&gt;</a>
+			<a className="pageChangeButtons" href={`/?page=${pageNum === 1 ? pageNum : pageNum - 1 }`/* this makes it go to page 1 when it is on page one*/}>&lt;- </a>
+			<a className="pageChangeButtons" href={`/?page=${pageNum + 1}`}> -&gt;</a>
 			</p>
 			</>
 		   )
