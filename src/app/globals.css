@@ -42,6 +42,15 @@ a {
   text-decoration: none;
 }
 
+.videos {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: wrap;
+}
+
+.videos > img {
+	border-radius: 5px;
+}
 @media (prefers-color-scheme: dark) {
   html {
     color-scheme: dark;

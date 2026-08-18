@@ -4,18 +4,13 @@ import { db } from '../../../../../instrumentation'
 import { eq } from 'drizzle-orm'
 import 'dotenv/config';
 
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
-
-const execFileAsync = promisify(execFile)
-
 
 export async function GET(
 	request: Request,
 	{ params }: { params: Promise<{ id: string, secret: string }> }
 ) {
 	const { id, secret } = await params;
-	if(secret != process.env.SHARED_ADMIN_SECRET) {
+	if(!process.env.SHARED_ADMIN_SECRET || secret !== process.env.SHARED_ADMIN_SECRET) {
 		return Response.json({ "error": "no perms" })
 	}
 	if(id == "all") {
