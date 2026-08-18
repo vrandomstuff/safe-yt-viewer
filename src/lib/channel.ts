@@ -3,14 +3,41 @@ import { promisify } from 'node:util'
 import { videoCache, blacklist } from '../db/schema'
 import { db } from '../instrumentation'
 import { and, eq, gt } from 'drizzle-orm'
-const execFileAsync = promisify(execFile)
-
+export const execFileAsync = promisify(execFile)
+export type channelData = {
+	name: string 
+	channelId: string
+	handle: string
+}
 export const playlist_root = 'https://www.youtube.com/playlist?list='
 
-function getThumbnailUrl(video_id: string): string {
+export function getThumbnailUrl(video_id: string): string {
 	return `https://i.ytimg.com/vi/${video_id}/maxresdefault.jpg`;	
 }
-
+export async function getChannelMetadata(handle: string): Promise<channelData | null> {
+	try {
+		const { stdout } = await execFileAsync(
+			'yt-dlp',
+			[
+				'--flat-playlist',
+				'--dump-single-json',
+				'--no-warnings',
+				`https://www.youtube.com/${handle}`,
+			],
+			{ maxBuffer: 64 * 1024 * 1024 },
+		)
+		const jsonData = JSON.parse(stdout)
+		const metadata: channelData = {
+			channelId: jsonData.channel_id,
+			name: jsonData.channel,
+			handle: jsonData.id
+		}
+		return metadata
+	} catch (error) {
+		console.error(`Error in getChannelMetadata("${handle}"): ${error}`)
+		return null
+	}
+}
 export async function getChannelAvatar(channelId: string): Promise<string | null> {
 	try {
 		const { stdout } = await execFileAsync(
