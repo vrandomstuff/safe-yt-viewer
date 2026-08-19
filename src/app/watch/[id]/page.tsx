@@ -2,7 +2,7 @@ import YTEmbed from '../../embed'
 import { videoCache, blacklist, whitelist } from '../../../db/schema'
 import { db } from '../../../instrumentation'
 import { eq } from 'drizzle-orm'
-export default async function Page({ params }: PageProps<"/watch/[id]">) {
+export default async function Page({ params }: {params: Promise<{ id: string}>}) {
 	const { id } = await params
 	const cacheEntry = await db.select().from(videoCache).where(eq(videoCache.videoId, id))
 	const blacklistEntry = await db.select().from(blacklist).where(eq(blacklist.videoId, id))

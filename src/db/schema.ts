@@ -1,4 +1,9 @@
-import { boolean, pgTable, timestamp, varchar } from "drizzle-orm/pg-core";
+import { boolean, pgTable, timestamp, varchar, PgColumn} from "drizzle-orm/pg-core";
+import { sql } from 'drizzle-orm'
+
+export function contains(col: PgColumn, value: string) {
+  return sql`strpos(lower(${col}), lower(${value})) > 0`;
+}
 
 export const channels = pgTable("channels", {
 	name: varchar({ length: 255 }).notNull().unique(),
