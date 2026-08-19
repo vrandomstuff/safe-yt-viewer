@@ -1,18 +1,18 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { videoCache, blacklist } from '../db/schema'
+import { videoCache, blacklist, avatarCache } from '../db/schema'
 import { db } from '../instrumentation'
 import { and, eq, gt } from 'drizzle-orm'
 export const execFileAsync = promisify(execFile)
 export type channelData = {
-	name: string 
+	name: string
 	channelId: string
 	handle: string
 }
 export const playlist_root = 'https://www.youtube.com/playlist?list='
 
 export function getThumbnailUrl(video_id: string): string {
-	return `https://i.ytimg.com/vi/${video_id}/maxresdefault.jpg`;	
+	return `https://i.ytimg.com/vi/${video_id}/maxresdefault.jpg`;
 }
 export async function getChannelMetadata(handle: string): Promise<channelData | null> {
 	try {
@@ -39,6 +39,26 @@ export async function getChannelMetadata(handle: string): Promise<channelData | 
 	}
 }
 export async function getChannelAvatar(channelId: string): Promise<string | null> {
+	const cacheExpiry = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+	const [freshCache] = await db
+		.select({ cachedAt: avatarCache.cachedAt })
+		.from(avatarCache)
+		.where(and(
+			eq(avatarCache.channelId, channelId),
+			gt(avatarCache.cachedAt, cacheExpiry),
+		))
+		.limit(1)
+
+	if (freshCache) {
+		const cacheEntry = await db.select().from(avatarCache).where(eq(avatarCache.channelId, channelId))
+		if(cacheEntry.length === 0) {
+			throw new Error("So there was a avatar in the avatar cache we checked it but now that we are getting the avatar it is gone.")
+		}
+		return cacheEntry[0].avatarUrl
+	} else {
+		console.log(`Clearing avatarCache for ${channelId}`)
+		await db.delete(avatarCache).where(eq(avatarCache.channelId, channelId))
+	}
 	try {
 		const { stdout } = await execFileAsync(
 			'yt-dlp',
@@ -52,6 +72,11 @@ export async function getChannelAvatar(channelId: string): Promise<string | null
 		)
 		const jsonData = JSON.parse(stdout)
 		const avatar = jsonData.thumbnails?.find((t: { id?: string }) => t.id === 'avatar_uncropped')
+		const entry: typeof avatarCache.$inferInsert = {
+			channelId: channelId,
+			avatarUrl: avatar.url
+		}
+		await db.insert(avatarCache).values(entry)
 		return avatar?.url ?? null
 	} catch (error) {
 		console.error(`Error in getChannelAvatar("${channelId}"): ${error}`)
@@ -145,5 +170,5 @@ export async function fillVideoCache(channel_id: string) {
 		const finishedAt = new Date()
 		console.log(`Finished cache fill for ${channel_id} at ${finishedAt.toISOString()} after ${finishedAt.getTime() - startedAt.getTime()}ms`)
 	}
-	
+
 }

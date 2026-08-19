@@ -26,28 +26,21 @@ export async function Video({ videoId }: videoType) {
 				/>
 				<br />
 				{video.title}
+				<a href={`/channel/${channel?.channelId}`}>
+					<img
+						style={{
+							width: '50px',
+							height: '50px',
+							backgroundColor: 'transparent',
+							borderRadius: '50px',
+						}}
+						alt={channel?.name}
+						src={channel?.avatarUrl}
+						title={channel?.name}
+					/>
+				</a>
 				<br />
-			</a>
-			<a
-				href={`/channel/${channel?.channelId}`}
-				style={{
-					alignSelf: 'flex-start',
-					marginLeft: '8px',
-				}}
-			>
-				<img
-					style={{
-						width: '50px',
-						height: '50px',
-						backgroundColor: 'transparent',
-						borderRadius: '50px',
-					}}
-					alt={channel?.name}
-					src={channel?.avatarUrl}
-					title={channel?.name}
-				/>
-			</a>
-			<br />
-		</div>
+				</a>
+			</div>
 	);
 }

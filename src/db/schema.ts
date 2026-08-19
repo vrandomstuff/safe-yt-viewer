@@ -13,6 +13,11 @@ export const channels = pgTable("channels", {
 	fullyAllowed: boolean().notNull()
 })
 
+export const avatarCache = pgTable("avatarCache", { // Cache for getAvatarUrl because it takes SOOOOO long
+	channelId: varchar({ length: 24 }).notNull().primaryKey(),
+	avatarUrl: varchar({ length: 255 }).notNull(),
+	cachedAt: timestamp({ withTimezone: true }).notNull().defaultNow()
+})
 export const videoCache = pgTable("videoCache", {
 	videoId: varchar({ length: 11 }).notNull().primaryKey(),
 	uploaderId: varchar({ length: 255 }).notNull(),
