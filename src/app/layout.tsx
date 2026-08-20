@@ -22,12 +22,15 @@ export const metadata: Metadata = {
 	other: {
 		"apple-mobile-web-app-capable": "yes",
 		"apple-mobile-web-app-title": "Safe YT",
-	}
+	},
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
 	return (
-		<html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
+		<html
+			lang="en"
+			className={`${geistSans.variable} ${geistMono.variable}`}
+		>
 			<body>{children}</body>
 		</html>
 	);

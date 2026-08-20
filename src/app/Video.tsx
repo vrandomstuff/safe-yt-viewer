@@ -3,21 +3,30 @@ import { db } from "@/instrumentation";
 import { eq } from "drizzle-orm";
 
 type videoType = {
-	videoId: string
-}
+	videoId: string;
+};
 export async function Video({ videoId }: videoType) {
-	const videoRow = await db.select().from(videoCache).where(eq(videoCache.videoId, videoId))
-	if(videoRow.length !== 1) {
-		throw new Error("Failed to get video.")
+	const videoRow = await db
+		.select()
+		.from(videoCache)
+		.where(eq(videoCache.videoId, videoId));
+	if (videoRow.length !== 1) {
+		throw new Error("Failed to get video.");
 	}
-	const video = videoRow[0]
-	const channelRow = await db.select().from(channels).where(eq(channels.channelId, video.uploaderId))
-	if(channelRow.length === 0) {
-		throw new Error("Failed to get channel somehow.")
+	const video = videoRow[0];
+	const channelRow = await db
+		.select()
+		.from(channels)
+		.where(eq(channels.channelId, video.uploaderId));
+	if (channelRow.length === 0) {
+		throw new Error("Failed to get channel somehow.");
 	}
-	const channel = channelRow[0]
+	const channel = channelRow[0];
 	return (
-		<div key={video.videoId} style={{ display: 'flex', flexDirection: 'row' }}>
+		<div
+			key={video.videoId}
+			style={{ display: "flex", flexDirection: "row" }}
+		>
 			<a href={`/watch/${video.videoId}`} style={{ flex: 1 }}>
 				<img
 					src={video.thumbnailURL}
@@ -29,10 +38,10 @@ export async function Video({ videoId }: videoType) {
 				<a href={`/channel/${channel?.channelId}`}>
 					<img
 						style={{
-							width: '50px',
-							height: '50px',
-							backgroundColor: 'transparent',
-							borderRadius: '50px',
+							width: "50px",
+							height: "50px",
+							backgroundColor: "transparent",
+							borderRadius: "50px",
 						}}
 						alt={channel?.name}
 						src={channel?.avatarUrl}
@@ -40,7 +49,7 @@ export async function Video({ videoId }: videoType) {
 					/>
 				</a>
 				<br />
-				</a>
-			</div>
+			</a>
+		</div>
 	);
 }
