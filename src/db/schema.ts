@@ -12,7 +12,9 @@ export const channels = pgTable("channels", {
 	avatarUrl: varchar({ length: 255 }).notNull(),
 	fullyAllowed: boolean().notNull()
 })
-
+export const tokens = pgTable("tokens", {
+	token: varchar({ length: 64 }).notNull().primaryKey()
+})
 export const avatarCache = pgTable("avatarCache", { // Cache for getAvatarUrl because it takes SOOOOO long
 	channelId: varchar({ length: 24 }).notNull().primaryKey(),
 	avatarUrl: varchar({ length: 255 }).notNull(),

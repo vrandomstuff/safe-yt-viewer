@@ -25,15 +25,20 @@ YouTube content filter: block videos unless the uploader is allowed or the video
 - Sync schema to the DB with `npx drizzle-kit push`; `generate`/`migrate` caused errors, don't use them
 
 ## How it's wired
-- `src/instrumentation.ts` — exports `db` (drizzle node-postgres from `DATABASE_URL`). Nothing runs at boot.
-- `src/lib/channel.ts` — `fillVideoCache(channelId)` runs `yt-dlp --flat-playlist` against the channel's `UU<id>` playlist and inserts into `videoCache`; `getChannelAvatar(channelId)` returns the `avatar_uncropped` thumbnail URL; `getChannelMetadata(handle)` fetches channel info by handle. Has a 30-day cache: if a channel's newest cached row is < 30 days old, existing rows are kept. Also skips blacklisted videos during fill.
-- `src/app/api/reCache/[id]/[secret]/route.ts` — GET route; requires `SHARED_ADMIN_SECRET`. When `id == "all"`: wipes entire `videoCache` table, then loops `channels` and fire-and-forget calls `fillVideoCache` for each. Otherwise: deletes only that channel's rows, then fire-and-forget fills.
+- `src/instrumentation.ts` — exports `db` (drizzle node-postgres from `DATABASE_URL`). Also validates `SHARED_ADMIN_SECRET` and `DATABASE_URL` at boot via `register()`.
+- `src/lib/channel.ts` — `fillVideoCache(channelId)` runs `yt-dlp --flat-playlist` against the channel's `UU<id>` playlist and inserts into `videoCache`; `getChannelAvatar(channelId)` returns the `avatar_uncropped` thumbnail URL (caches in `avatarCache` table); `getChannelMetadata(handle)` fetches channel info by handle. Has a 30-day cache: if a channel's newest cached row is < 30 days old, existing rows are kept. Also skips blacklisted videos during fill.
+- `src/lib/whitelistManager.ts` — `fillVideoCacheFromWhitelist()` iterates the `whitelist` table, fetches metadata for each video via yt-dlp, ensures the channel exists in `channels`, and inserts into `videoCache`. Skips blacklisted videos.
+- `src/app/api/reCache/[id]/[secret]/route.ts` — GET route; requires `SHARED_ADMIN_SECRET`. When `id == "all"`: wipes entire `videoCache` table, then loops `channels` where `fullyAllowed` is true and fire-and-forget calls `fillVideoCache` for each, plus calls `fillVideoCacheFromWhitelist()`. Otherwise: deletes only that channel's rows, then fire-and-forget fills.
 - `src/app/api/getAvatar/[channelId]/[secret]/route.ts` — GET route; requires `SHARED_ADMIN_SECRET`. Returns the avatar URL for a channel.
-- `src/db/schema.ts` — tables: `channels`, `videoCache`, `watchData`, `whitelist`, `blacklist`
-- `src/app/page.tsx` — paginated video list (50 per page, ordered by `publishedAt` desc); reads `?page=N` search param
-- `src/app/videoList.tsx` — server component that queries `videoCache` with limit/offset, joins `channels` for avatars
-- `src/app/watch/[id]/page.tsx` — checks `videoCache`/`whitelist`/`blacklist`; embeds via `src/app/embed.tsx` (youtube-nocookie iframe). Also writes to `watchData` on view.
-- `src/app/search/[queryUri]/` — search route
+- `src/db/schema.ts` — tables: `channels`, `tokens`, `avatarCache`, `videoCache`, `watchData`, `whitelist`, `blacklist`. Also exports a `contains(col, value)` SQL helper for case-insensitive substring search.
+- `src/app/page.tsx` — renders `SearchBar` and `VideoList`; reads `?page=N` search param for pagination
+- `src/app/videoList.tsx` — server component; queries `videoCache` with limit/offset ordered by `publishedAt` desc; delegates per-video rendering to `Video` component
+- `src/app/Video.tsx` — server component; given a `videoId`, fetches the video row and its channel row, renders thumbnail + title + channel avatar link
+- `src/app/embed.tsx` — server component; checks `videoCache`/`whitelist`/`blacklist`, writes to `watchData` on view, renders youtube-nocookie iframe with autoplay
+- `src/app/watch/[id]/page.tsx` — access gate: checks `videoCache`/`whitelist`/`blacklist`; renders `YTEmbed` if allowed, "not allowed" otherwise
+- `src/app/searchBar.tsx` — client component; input that navigates to `/search/<query>` on Enter or button click
+- `src/app/search/[queryUri]/` — paginated search using `contains()` helper on `videoCache.title`; reuses `Video` and `SearchBar`
+- `src/app/admin/` — admin panel with auth gate (`redirectIfNotAuthed`); routes for managing whitelist, blacklist, channels, and viewing watch data
 - `get-channel-data.sh` — zsh script; dumps the PortalRunner (`UCx-PpwbajI5ToAY0WwJO2Kg`) playlist to `UC<id>.json` in the repo root (gitignored, unreadable — see OOM warning)
 
 ## Gotchas
@@ -44,3 +49,6 @@ YouTube content filter: block videos unless the uploader is allowed or the video
 - Next 16 changed APIs: dynamic-route `params` is a `Promise` that must be `await`ed; pages/layouts are typed with global route-aware helpers (`PageProps<"/watch/[id]">`, `LayoutProps<"/">`). Read `node_modules/next/dist/docs/` before writing route code.
 - `fillVideoCache` needs `yt-dlp` on PATH and a reachable Postgres; failures are caught and logged, execution continues.
 - Path alias `@/*` maps to `src/*`.
+- `watchData` writes happen in `embed.tsx`, not in `watch/[id]/page.tsx`. The watch page is purely an access gate.
+- `videoList.tsx` does not join `channels` — the `Video` component handles its own channel query per video.
+- The reCache `id=="all"` path only re-fetches channels where `fullyAllowed` is true; channels added via whitelistManager have `fullyAllowed: false` and are excluded from bulk reCache.

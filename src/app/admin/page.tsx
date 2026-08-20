@@ -1,15 +1,15 @@
-import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
+import Link from "next/link";
+import { redirectIfNotAuthed } from "./auth/actions";
 
 export default async function Page() {
-	const cookieStore = await cookies()
-
-	if(cookieStore.get("secret") !== process.env.SHARED_ADMIN_SECRET) {
-		redirect("/admin/auth")
-	}
+	await redirectIfNotAuthed()
 	return (
 		<>
-		<button onClick={() => redirect("/admin/manageWhitelist")}>Manage whitelist</button>
+		<Link
+			style={{
+				"backgroundColor": "gray"
+			}}
+			href="/admin/manageWhitelist">Manage whitelist</Link>
 		</>
 	)
 }
