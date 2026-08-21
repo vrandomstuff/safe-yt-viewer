@@ -46,10 +46,7 @@ a {
 	display: flex;
 	flex-direction: row;
 	flex-wrap: wrap;
-}
-
-.videos > img {
-	border-radius: 5px;
+	gap: 5px;
 }
 
 .pageChangeButtons {

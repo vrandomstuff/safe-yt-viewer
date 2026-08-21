@@ -7,7 +7,19 @@ const eslintConfig = defineConfig([
 	...nextTs,
 	{
 		rules: {
-			"@next/next/no-img-element": "off"
+			"@next/next/no-img-element": "off",
+			"no-restricted-imports": [
+				"error",
+				{
+					patterns: [
+						{
+							group: ["../*", "../**"],
+							message:
+								"Use the @/* alias instead of relative parent imports."
+						}
+					]
+				}
+			]
 		}
 	},
 	// Override default ignores of eslint-config-next.

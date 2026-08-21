@@ -1,6 +1,6 @@
-import YTEmbed from "../../embed";
-import { videoCache, blacklist, whitelist } from "../../../db/schema";
-import { db } from "../../../instrumentation";
+import YTEmbed from "@/app/embed";
+import { videoCache, blacklist, whitelist } from "@/db/schema";
+import { db } from "@/instrumentation";
 import { eq } from "drizzle-orm";
 export default async function Page({
 	params

@@ -8,25 +8,33 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 <!-- END:nextjs-agent-rules -->
 
+## PERMISSION RULES — READ FIRST
+
+- **NEVER EVER edit, create, overwrite, or delete any file without explicit permission from the user.** Answering a question or describing a change does NOT authorize implementing it — ask first, wait for a yes.
+- This includes "harmless" operations that modify files: repo-wide formatters, code generators, git commands that touch files (`git checkout --`, `git restore`, `git stash`), etc.
+- Exception: running `pnpm format` / Prettier is ALWAYS allowed, no matter what — formatting is enforced by the pre-commit hook anyway, so it can never cause damage.
+- Your user is the owner of all of the files they have the final say no matter what.
+
 ## Quick commands
 
 - `pnpm dev` / `pnpm build` / `pnpm start` — dev server, production build, production server
-- Typecheck: `node_modules/.bin/tsc --noEmit` (not in `package.json` but works)
+- `pnpm typecheck` — TypeScript (`tsc --noEmit`)
 - `pnpm lint` — ESLint (flat config, eslint v9)
-- `pnpm format` — Prettier (tabs, LF endings per `.editorconfig`)
+- `pnpm agentFinish` — typecheck + lint + format in one; **run after finishing every task**
+- `pnpm run ci` — typecheck + lint + `prettier --check .`; exactly what PR CI runs (`ci.yml` exists twice: GitHub Actions and Forgejo, both Node 22 + pnpm). **Must be `pnpm run ci`, NOT `pnpm ci`** — bare `pnpm ci` is pnpm's built-in clean-install: it deletes node_modules and reinstalls instead of running the script.
 - `npx drizzle-kit push` — push Drizzle schema to PostgreSQL (**must use `npx`**, not `pnpm dlx` or `pnpx`)
+- There is no test suite — verify changes with typecheck, lint, and `pnpm build`.
 
 ## Architecture
 
 Next.js 16 + React 19 App Router app backed by PostgreSQL via Drizzle ORM. Uses `yt-dlp` (requires `deno` in PATH for YouTube challenge solving) to fetch YouTube channel/video metadata, caches results in the DB.
 
 - `src/instrumentation.ts` — exports `db` (drizzle instance), validates `.env` vars on startup
-- `src/lib/channel.ts` — core YouTube data fetching via yt-dlp, video cache management
-- `src/lib/whitelistManager.ts` — caches whitelisted videos from non-fullyAllowed channels
-- `src/db/schema.ts` — Drizzle schema: channels, tokens, avatarCache, videoCache, watchData, whitelist, blacklist
-- `src/app/admin/` — admin panel (auth via `SHARED_ADMIN_SECRET`)
-- `src/app/api/reCache/[id]/[secret]/` — re-cache endpoint, also uses `SHARED_ADMIN_SECRET`
-- `src/app/api/getAvatar/[channelId]/[secret]/` — returns avatar URL for a channel, also uses `SHARED_ADMIN_SECRET`
+- `src/lib/channel.ts` — core YouTube data fetching via yt-dlp (channel metadata, avatar, video cache fill)
+- `src/lib/whitelistManager.ts` — caches whitelisted videos from channels not fully allowed; inserts those channels with `fullyAllowed: false`
+- `src/db/schema.ts` — Drizzle schema: channels, tokens, avatarCache, channelMetadataCache, videoCache, watchData, whitelist, blacklist
+- `src/app/admin/` — admin panel; logging in stores a random session token in the `tokens` table plus a 24h cookie. Guard pages with `redirectIfNotAuthed()` (`admin/auth/actions.ts`)
+- `src/app/api/reCache/[id]/[secret]/` — re-cache endpoint; `src/app/api/getAvatar/[channelId]/[secret]/` — avatar URL endpoint. Both authenticate via `SHARED_ADMIN_SECRET` in the URL path
 - `circle.py` — standalone Python script for circular-cropping images (not part of the app)
 
 ## Environment
@@ -37,16 +45,18 @@ Requires `.env` with `DATABASE_URL` (PostgreSQL) and `SHARED_ADMIN_SECRET` (admi
 
 - `drizzle-kit push` **must** be invoked with `npx` — `pnpm dlx` and `pnpx` will not work.
 - yt-dlp is called with `maxBuffer: 64 * 1024 * 1024` (64MB) — large channel dumps can be big.
-- Video/avatar caches expire after 30 days. Cache fill skips live streams and blacklisted videos.
+- Video/avatar/channel-metadata caches expire after 30 days. Cache fill skips live streams and blacklisted videos.
 - Channel ID must start with `UC` (second char `'C'`) to convert to uploads playlist (`UU` prefix).
 - `allowedDevOrigins` in `next.config.ts` includes `192.168.0.188` — adjust for your LAN.
 - **NEVER read JSON files that look like channel IDs** — they can be huge and cause OOM.
-- Pre-commit hook (husky + lint-staged) auto-runs Prettier on all staged files.
+- Pre-commit hook (husky + lint-staged) auto-runs Prettier on staged files. Formatting is tabs (4-wide) + LF via `.editorconfig`, `trailingComma: none` via `.prettierrc`.
 - `CLAUDE.md` points here; keep it that way.
 - `fillVideoCache` in `channel.ts` **must** pass `--extractor-args 'youtubetab:approximate_date'` to yt-dlp — without it `timestamp` is null and every video is silently skipped.
 - Don't import `channel.ts` from `instrumentation.ts` — `instrumentation.ts` exports `db` which `channel.ts` imports; reversing this creates a circular dependency.
-- Next 16 changed APIs: dynamic-route `params` is a `Promise` that must be `await`ed; pages/layouts are typed with global route-aware helpers (`PageProps<"/watch/[id]">`, `LayoutProps<"/">`). Read `node_modules/next/dist/docs/` before writing route code.
-- Path alias `@/*` maps to `src/*`.
-- `watchData` writes happen in `src/app/embed.tsx`, not in `watch/[id]/page.tsx`. The watch page is purely an access gate.
-- `videoList.tsx` does not join `channels` — the `Video` component handles its own channel query per video (intentional N+1).
-- The reCache `id=="all"` path only re-fetches channels where `fullyAllowed` is true; channels added via whitelistManager have `fullyAllowed: false` and are excluded from bulk reCache.
+- Next 16 changed APIs: dynamic-route `params`/`searchParams` are `Promise`s that must be `await`ed; layouts use global route-aware helper types (`LayoutProps<"/">`). Read `node_modules/next/dist/docs/` before writing route code.
+- For new route files, prefer inline Promise types (`{ params }: { params: Promise<{ id: string }> }`) over the global helper types — that's the repo convention.
+- Path alias `@/*` maps to `src/*`; ESLint errors on relative parent imports (`../*`) — always use the alias.
+- The reCache endpoint responds `"working"` immediately — `reCache()` is deliberately not awaited; cache fill continues in the background.
+- `watchData` writes happen in `src/app/embed.tsx`, not in `watch/[id]/page.tsx`. The watch page is purely an access gate (cache/whitelist/blacklist check).
+- `videoList.tsx` does not join `channels` — the `Video` component handles its own videoCache + channels queries per video (intentional N+1).
+- The reCache `id=="all"` path deletes the entire videoCache and refills it in two passes: `fillVideoCache` for each channel where `fullyAllowed` is true, then `fillVideoCacheFromWhitelist()`, which iterates the whitelist (skipping blacklisted videos) and adds those videos to the videoCache. Whitelisted videos from non-fullyAllowed channels are therefore NOT excluded from bulk reCache — they're covered by the whitelist pass.

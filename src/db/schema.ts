@@ -27,6 +27,12 @@ export const avatarCache = pgTable("avatarCache", {
 	avatarUrl: varchar({ length: 255 }).notNull(),
 	cachedAt: timestamp({ withTimezone: true }).notNull().defaultNow()
 });
+export const channelMetadataCache = pgTable("channelMetadataCache", {
+	handle: varchar({ length: 255 }).notNull().primaryKey(),
+	channelId: varchar({ length: 24 }).notNull(),
+	name: varchar({ length: 255 }).notNull(),
+	cachedAt: timestamp({ withTimezone: true }).notNull().defaultNow()
+});
 export const videoCache = pgTable("videoCache", {
 	videoId: varchar({ length: 11 }).notNull().primaryKey(),
 	uploaderId: varchar({ length: 255 }).notNull(),

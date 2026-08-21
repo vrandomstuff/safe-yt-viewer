@@ -1,5 +1,5 @@
-import SearchBar from "./searchBar";
-import VideoList from "./videoList";
+import SearchBar from "@/app/searchBar";
+import VideoList from "@/app/videoList";
 
 export default async function Page({
 	searchParams

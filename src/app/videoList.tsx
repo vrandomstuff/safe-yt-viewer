@@ -1,7 +1,7 @@
 import { videoCache } from "@/db/schema";
 import { db } from "@/instrumentation";
 import { desc } from "drizzle-orm";
-import { Video } from "./Video";
+import { Video } from "@/app/Video";
 
 type pageType = {
 	page: number;

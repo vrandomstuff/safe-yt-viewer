@@ -1,6 +1,7 @@
-import { fillVideoCache } from "../../../../../lib/channel";
-import { videoCache, channels } from "../../../../../db/schema";
-import { db } from "../../../../../instrumentation";
+"use server";
+import { fillVideoCache } from "@/lib/channel";
+import { videoCache, channels } from "@/db/schema";
+import { db } from "@/instrumentation";
 import { eq } from "drizzle-orm";
 import "dotenv/config";
 import { fillVideoCacheFromWhitelist } from "@/lib/whitelistManager";

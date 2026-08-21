@@ -7,8 +7,11 @@
 		"build": "next build",
 		"start": "next start",
 		"lint": "eslint",
+		"typecheck": "tsc --noEmit",
 		"prepare": "husky",
-		"format": "prettier --write ."
+		"format": "prettier --write .",
+		"agentFinish": "pnpm typecheck && pnpm lint && pnpm format",
+		"ci": "pnpm typecheck && pnpm lint && prettier --check ."
 	},
 	"dependencies": {
 		"dotenv": "^17.4.2",

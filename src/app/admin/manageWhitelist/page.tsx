@@ -1,15 +1,19 @@
 import { db } from "@/instrumentation";
-import { redirectIfNotAuthed } from "../auth/actions";
+import { redirectIfNotAuthed } from "@/app/admin/auth/actions";
 import { videoCache, whitelist } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { Video } from "@/app/Video";
 
 export default async function Page() {
 	redirectIfNotAuthed();
+
 	const whitelistRows = await db.select().from(whitelist);
 
 	return (
 		<>
-			<ul>
+			<ul
+				style={{ display: "flex", flexDirection: "column", gap: "5px" }}
+			>
 				{whitelistRows.map(async (wVid) => {
 					const videoRow = await db
 						.select()
@@ -18,14 +22,9 @@ export default async function Page() {
 					if (videoRow.length === 0) {
 						return <li key={wVid.videoId}>{wVid.videoId}</li>;
 					}
-					const video = videoRow[0];
 					return (
 						<li key={wVid.videoId}>
-							<img
-								src={video.thumbnailURL}
-								alt={`Thumbnail for the video: ${video.title}`}
-								crossOrigin="anonymous"
-							/>
+							<Video videoId={wVid.videoId} />
 						</li>
 					);
 				})}

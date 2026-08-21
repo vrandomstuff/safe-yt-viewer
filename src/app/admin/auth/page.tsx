@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { logIn, startSecureAuth } from "./actions";
+import { logIn, startSecureAuth } from "@/app/admin/auth/actions";
 
 export async function digestMessage(message: string): Promise<string> {
 	// thank you mdn

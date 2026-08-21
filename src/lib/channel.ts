@@ -1,7 +1,12 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { videoCache, blacklist, avatarCache } from "../db/schema";
-import { db } from "../instrumentation";
+import {
+	videoCache,
+	blacklist,
+	avatarCache,
+	channelMetadataCache
+} from "@/db/schema";
+import { db } from "@/instrumentation";
 import { and, eq, gt } from "drizzle-orm";
 export const execFileAsync = promisify(execFile);
 export type channelData = {
@@ -17,6 +22,39 @@ export function getThumbnailUrl(video_id: string): string {
 export async function getChannelMetadata(
 	handle: string
 ): Promise<channelData | null> {
+	const cacheExpiry = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+	const [freshCache] = await db
+		.select({ cachedAt: channelMetadataCache.cachedAt })
+		.from(channelMetadataCache)
+		.where(
+			and(
+				eq(channelMetadataCache.handle, handle),
+				gt(channelMetadataCache.cachedAt, cacheExpiry)
+			)
+		)
+		.limit(1);
+
+	if (freshCache) {
+		const [cacheEntry] = await db
+			.select()
+			.from(channelMetadataCache)
+			.where(eq(channelMetadataCache.handle, handle));
+		if (!cacheEntry) {
+			throw new Error(
+				"So there was a channel in the channelMetadataCache we checked it but now that we are getting the metadata it is gone."
+			);
+		}
+		return {
+			channelId: cacheEntry.channelId,
+			name: cacheEntry.name,
+			handle: cacheEntry.handle
+		};
+	} else {
+		console.log(`Clearing channelMetadataCache for ${handle}`);
+		await db
+			.delete(channelMetadataCache)
+			.where(eq(channelMetadataCache.handle, handle));
+	}
 	try {
 		const { stdout } = await execFileAsync(
 			"yt-dlp",
@@ -34,6 +72,12 @@ export async function getChannelMetadata(
 			name: jsonData.channel,
 			handle: jsonData.id
 		};
+		const entry: typeof channelMetadataCache.$inferInsert = {
+			handle: handle,
+			channelId: metadata.channelId,
+			name: metadata.name
+		};
+		await db.insert(channelMetadataCache).values(entry);
 		return metadata;
 	} catch (error) {
 		console.error(`Error in getChannelMetadata("${handle}"): ${error}`);

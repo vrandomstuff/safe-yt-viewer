@@ -1,7 +1,8 @@
 "use client";
 import Link from "next/link";
-import { redirectIfNotAuthed } from "./auth/actions";
+import { redirectIfNotAuthed } from "@/app/admin/auth/actions";
 import { useEffect } from "react";
+import { reCache } from "@/app/api/reCache/[id]/[secret]/route";
 
 export default function Page() {
 	useEffect(() => {
@@ -20,6 +21,13 @@ export default function Page() {
 			>
 				Manage whitelist
 			</Link>
+			<button
+				onClick={async () => {
+					reCache("all");
+				}}
+			>
+				reCache all videos
+			</button>
 		</>
 	);
 }
