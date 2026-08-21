@@ -39,7 +39,7 @@ export default async function YTEmbed({ id }: YTEmbedProps) {
 			<iframe
 				id="ytplayer"
 				title="YouTube video player"
-				src={`https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=1&rel=0&controls=0&enablejsapi=1&origin=${origin}`}
+				src={`https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=1&rel=0&enablejsapi=1&origin=${origin}`}
 				allow="autoplay; fullscreen"
 				allowFullScreen
 				style={{ border: 0, height: "100vh", width: "100vw" }}
