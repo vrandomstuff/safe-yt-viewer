@@ -4,7 +4,7 @@ import {
 	execFileAsync,
 	getChannelAvatar,
 	getChannelMetadata,
-	getThumbnailUrl,
+	getThumbnailUrl
 } from "@/lib/channel";
 import { eq } from "drizzle-orm";
 
@@ -23,7 +23,7 @@ export async function fillVideoCacheFromWhitelist() {
 		try {
 			if (blacklistIds.includes(video.videoId)) {
 				console.log(
-					`Skipping ${video.videoId} since it is in the blacklist`,
+					`Skipping ${video.videoId} since it is in the blacklist`
 				);
 				continue;
 			}
@@ -36,22 +36,22 @@ export async function fillVideoCacheFromWhitelist() {
 					"--flat-playlist",
 					"--dump-single-json",
 					"--no-warnings",
-					`https://www.youtube.com/watch?v=${video.videoId}`,
+					`https://www.youtube.com/watch?v=${video.videoId}`
 				],
-				{ maxBuffer: 64 * 1024 * 1024 },
+				{ maxBuffer: 64 * 1024 * 1024 }
 			);
 			const jsonData = JSON.parse(stdout);
 			const channelData = await getChannelMetadata(jsonData.uploader_id);
 			if (channelData == null) {
 				console.error(
-					`channelData for ${jsonData.uploader_id} is null, skipping`,
+					`channelData for ${jsonData.uploader_id} is null, skipping`
 				);
 				continue;
 			}
 			const channelAvatar = await getChannelAvatar(channelData.channelId);
 			if (channelAvatar == null) {
 				console.error(
-					`channelAvatar for ${jsonData.uploader_id} is null, skipping`,
+					`channelAvatar for ${jsonData.uploader_id} is null, skipping`
 				);
 				continue;
 			}
@@ -60,7 +60,7 @@ export async function fillVideoCacheFromWhitelist() {
 				channelId: channelData.channelId,
 				handle: channelData.handle,
 				avatarUrl: channelAvatar,
-				fullyAllowed: false,
+				fullyAllowed: false
 			};
 			await db
 				.insert(channels)
@@ -72,19 +72,19 @@ export async function fillVideoCacheFromWhitelist() {
 				uploaderId: channelData.channelId,
 				title: jsonData.title,
 				thumbnailURL: thumbnail,
-				publishedAt: new Date(jsonData.timestamp * 1000),
+				publishedAt: new Date(jsonData.timestamp * 1000)
 			};
 			console.log(`Inserting ${jsonData.title}`);
 			await db.insert(videoCache).values(cacheEntry);
 		} catch (error) {
 			console.error(
-				`Error caching whitelist video ${video.videoId}: ${error}`,
+				`Error caching whitelist video ${video.videoId}: ${error}`
 			);
 		}
 	} // for video of whitelistData
 
 	const finishedAt = new Date();
 	console.log(
-		`Finished whitelist cache fill at ${finishedAt.toISOString()} after ${finishedAt.getTime() - startedAt.getTime()}ms`,
+		`Finished whitelist cache fill at ${finishedAt.toISOString()} after ${finishedAt.getTime() - startedAt.getTime()}ms`
 	);
 } // function

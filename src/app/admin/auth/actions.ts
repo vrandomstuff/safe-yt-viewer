@@ -34,21 +34,21 @@ export async function redirectIfNotAuthed() {
 export async function logIn(
 	secret: string,
 	secure: boolean,
-	id: string | null,
+	id: string | null
 ): Promise<boolean> {
 	if (process.env.SHARED_ADMIN_SECRET === undefined) {
 		throw new Error("SHARED_ADMIN_SECRET not found.");
 	}
 	if (secure && id != null) {
 		const expected = await digestMessage(
-			secureAuthStore[id] + process.env.SHARED_ADMIN_SECRET,
+			secureAuthStore[id] + process.env.SHARED_ADMIN_SECRET
 		);
 		delete secureAuthStore[id];
 		if (secret === expected) {
 			const cookieStore = await cookies();
 			const token = randomBytes(16).toString("hex");
 			const entry: typeof tokens.$inferInsert = {
-				token: token,
+				token: token
 			};
 			await db.insert(tokens).values(entry);
 			cookieStore.set("token", token, { maxAge: 60 * 60 * 24 });
@@ -59,7 +59,7 @@ export async function logIn(
 			const cookieStore = await cookies();
 			const token = randomBytes(16).toString("hex");
 			const entry: typeof tokens.$inferInsert = {
-				token: token,
+				token: token
 			};
 			await db.insert(tokens).values(entry);
 			cookieStore.set("token", token, { maxAge: 60 * 60 * 24 });

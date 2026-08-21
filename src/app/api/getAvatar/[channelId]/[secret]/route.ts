@@ -3,7 +3,7 @@ import "dotenv/config";
 
 export async function GET(
 	request: Request,
-	{ params }: { params: Promise<{ channelId: string; secret: string }> },
+	{ params }: { params: Promise<{ channelId: string; secret: string }> }
 ) {
 	const { channelId, secret } = await params;
 

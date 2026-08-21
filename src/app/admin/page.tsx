@@ -1,13 +1,20 @@
+"use client";
 import Link from "next/link";
 import { redirectIfNotAuthed } from "./auth/actions";
+import { useEffect } from "react";
 
-export default async function Page() {
-	await redirectIfNotAuthed();
+export default function Page() {
+	useEffect(() => {
+		async function doasyncsincereactisdumb() {
+			await redirectIfNotAuthed();
+		}
+		doasyncsincereactisdumb();
+	}, []);
 	return (
 		<>
 			<Link
 				style={{
-					backgroundColor: "gray",
+					backgroundColor: "gray"
 				}}
 				href="/admin/manageWhitelist"
 			>

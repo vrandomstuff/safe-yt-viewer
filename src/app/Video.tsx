@@ -41,7 +41,7 @@ export async function Video({ videoId }: videoType) {
 							width: "50px",
 							height: "50px",
 							backgroundColor: "transparent",
-							borderRadius: "50px",
+							borderRadius: "50px"
 						}}
 						alt={channel?.name}
 						src={channel?.avatarUrl}

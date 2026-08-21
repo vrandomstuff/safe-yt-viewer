@@ -6,7 +6,7 @@ import { Video } from "@/app/Video";
 import SearchBar from "@/app/searchBar";
 export default async function Page({
 	params,
-	searchParams,
+	searchParams
 }: {
 	params: Promise<{ queryUri: string }>;
 	searchParams: Promise<{ page?: string | string[] }>;

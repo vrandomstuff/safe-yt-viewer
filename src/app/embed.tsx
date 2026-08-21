@@ -30,7 +30,7 @@ export default async function YTEmbed({ id }: YTEmbedProps) {
 	}
 	const entry: typeof watchData.$inferInsert = {
 		videoId: id,
-		title: video[0].title,
+		title: video[0].title
 	};
 	await db.insert(watchData).values(entry).onConflictDoNothing();
 	const origin = await getOrigin();

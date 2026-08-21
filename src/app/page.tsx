@@ -2,7 +2,7 @@ import SearchBar from "./searchBar";
 import VideoList from "./videoList";
 
 export default async function Page({
-	searchParams,
+	searchParams
 }: {
 	searchParams: Promise<{ page?: string | string[] }>;
 }) {

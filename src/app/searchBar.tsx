@@ -18,7 +18,7 @@ export default function SearchBar({ query }: searchQuery) {
 				style={{
 					height: "50px",
 					fontSize: 30,
-					width: "50vw",
+					width: "50vw"
 				}}
 				onKeyDown={(e) => {
 					if (e.key === "Enter") {
@@ -46,7 +46,7 @@ export default function SearchBar({ query }: searchQuery) {
 					background: "none",
 					border: "none",
 					cursor: "pointer",
-					padding: 0,
+					padding: 0
 				}}
 			>
 				<img

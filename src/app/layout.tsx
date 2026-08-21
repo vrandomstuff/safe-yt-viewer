@@ -4,12 +4,12 @@ import "./globals.css";
 
 const geistSans = Geist({
 	variable: "--font-geist-sans",
-	subsets: ["latin"],
+	subsets: ["latin"]
 });
 
 const geistMono = Geist_Mono({
 	variable: "--font-geist-mono",
-	subsets: ["latin"],
+	subsets: ["latin"]
 });
 
 export const metadata: Metadata = {
@@ -17,12 +17,12 @@ export const metadata: Metadata = {
 	description: "\0",
 	icons: {
 		icon: "/apple-touch-icon.png",
-		apple: "/apple-touch-icon.png",
+		apple: "/apple-touch-icon.png"
 	},
 	other: {
 		"apple-mobile-web-app-capable": "yes",
-		"apple-mobile-web-app-title": "Safe YT",
-	},
+		"apple-mobile-web-app-title": "Safe YT"
+	}
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

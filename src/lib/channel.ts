@@ -15,7 +15,7 @@ export function getThumbnailUrl(video_id: string): string {
 	return `https://i.ytimg.com/vi/${video_id}/maxresdefault.jpg`;
 }
 export async function getChannelMetadata(
-	handle: string,
+	handle: string
 ): Promise<channelData | null> {
 	try {
 		const { stdout } = await execFileAsync(
@@ -24,15 +24,15 @@ export async function getChannelMetadata(
 				"--flat-playlist",
 				"--dump-single-json",
 				"--no-warnings",
-				`https://www.youtube.com/${handle}`,
+				`https://www.youtube.com/${handle}`
 			],
-			{ maxBuffer: 64 * 1024 * 1024 },
+			{ maxBuffer: 64 * 1024 * 1024 }
 		);
 		const jsonData = JSON.parse(stdout);
 		const metadata: channelData = {
 			channelId: jsonData.channel_id,
 			name: jsonData.channel,
-			handle: jsonData.id,
+			handle: jsonData.id
 		};
 		return metadata;
 	} catch (error) {
@@ -41,7 +41,7 @@ export async function getChannelMetadata(
 	}
 }
 export async function getChannelAvatar(
-	channelId: string,
+	channelId: string
 ): Promise<string | null> {
 	const cacheExpiry = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 	const [freshCache] = await db
@@ -50,8 +50,8 @@ export async function getChannelAvatar(
 		.where(
 			and(
 				eq(avatarCache.channelId, channelId),
-				gt(avatarCache.cachedAt, cacheExpiry),
-			),
+				gt(avatarCache.cachedAt, cacheExpiry)
+			)
 		)
 		.limit(1);
 
@@ -62,7 +62,7 @@ export async function getChannelAvatar(
 			.where(eq(avatarCache.channelId, channelId));
 		if (cacheEntry.length === 0) {
 			throw new Error(
-				"So there was a avatar in the avatar cache we checked it but now that we are getting the avatar it is gone.",
+				"So there was a avatar in the avatar cache we checked it but now that we are getting the avatar it is gone."
 			);
 		}
 		return cacheEntry[0].avatarUrl;
@@ -79,17 +79,17 @@ export async function getChannelAvatar(
 				"--flat-playlist",
 				"--dump-single-json",
 				"--no-warnings",
-				`https://www.youtube.com/channel/${channelId}`,
+				`https://www.youtube.com/channel/${channelId}`
 			],
-			{ maxBuffer: 64 * 1024 * 1024 },
+			{ maxBuffer: 64 * 1024 * 1024 }
 		);
 		const jsonData = JSON.parse(stdout);
 		const avatar = jsonData.thumbnails?.find(
-			(t: { id?: string }) => t.id === "avatar_uncropped",
+			(t: { id?: string }) => t.id === "avatar_uncropped"
 		);
 		const entry: typeof avatarCache.$inferInsert = {
 			channelId: channelId,
-			avatarUrl: avatar.url,
+			avatarUrl: avatar.url
 		};
 		await db.insert(avatarCache).values(entry);
 		return avatar?.url ?? null;
@@ -101,13 +101,13 @@ export async function getChannelAvatar(
 export async function fillVideoCache(channel_id: string) {
 	const startedAt = new Date();
 	console.log(
-		`Starting cache fill for ${channel_id} at ${startedAt.toISOString()}`,
+		`Starting cache fill for ${channel_id} at ${startedAt.toISOString()}`
 	);
 
 	if (channel_id[1] !== "C") {
 		console.error(`Unable to convert ${channel_id} to playlist id.`);
 		console.log(
-			`Finished cache fill for ${channel_id} at ${new Date().toISOString()} after ${Date.now() - startedAt.getTime()}ms`,
+			`Finished cache fill for ${channel_id} at ${new Date().toISOString()} after ${Date.now() - startedAt.getTime()}ms`
 		);
 		return false;
 	}
@@ -127,14 +127,14 @@ export async function fillVideoCache(channel_id: string) {
 			.where(
 				and(
 					eq(videoCache.uploaderId, channel_id),
-					gt(videoCache.cachedAt, cacheExpiry),
-				),
+					gt(videoCache.cachedAt, cacheExpiry)
+				)
 			)
 			.limit(1);
 
 		if (freshCache) {
 			console.log(
-				`Keeping cache for ${channel_id}; it is less than a month old`,
+				`Keeping cache for ${channel_id}; it is less than a month old`
 			);
 		} else {
 			console.log(`Clearing cache for ${channel_id}`);
@@ -145,7 +145,7 @@ export async function fillVideoCache(channel_id: string) {
 
 		const ytDlpStartedAt = new Date();
 		console.log(
-			`Starting yt-dlp for ${channel_id} at ${ytDlpStartedAt.toISOString()}`,
+			`Starting yt-dlp for ${channel_id} at ${ytDlpStartedAt.toISOString()}`
 		);
 		let stdout: string;
 		try {
@@ -157,21 +157,21 @@ export async function fillVideoCache(channel_id: string) {
 					"youtubetab:approximate_date",
 					"--dump-single-json",
 					"--no-warnings",
-					playlist_url,
+					playlist_url
 				],
-				{ maxBuffer: 64 * 1024 * 1024 },
+				{ maxBuffer: 64 * 1024 * 1024 }
 			));
 		} finally {
 			const ytDlpFinishedAt = new Date();
 			console.log(
-				`Finished yt-dlp for ${channel_id} at ${ytDlpFinishedAt.toISOString()} after ${ytDlpFinishedAt.getTime() - ytDlpStartedAt.getTime()}ms`,
+				`Finished yt-dlp for ${channel_id} at ${ytDlpFinishedAt.toISOString()} after ${ytDlpFinishedAt.getTime() - ytDlpStartedAt.getTime()}ms`
 			);
 		}
 		const jsonData = JSON.parse(stdout);
 		for (const video of jsonData.entries) {
 			if (video.live_status != null) {
 				console.log(
-					`Skipping ${video.title} since it is/was a live stream`,
+					`Skipping ${video.title} since it is/was a live stream`
 				);
 				continue;
 			}
@@ -181,7 +181,7 @@ export async function fillVideoCache(channel_id: string) {
 			}
 			if (blacklistIds.includes(video.id)) {
 				console.log(
-					`Skipping ${video.title} since it is in the blacklist`,
+					`Skipping ${video.title} since it is in the blacklist`
 				);
 				continue;
 			}
@@ -192,7 +192,7 @@ export async function fillVideoCache(channel_id: string) {
 				title: video.title,
 				thumbnailURL: thumbnailUrl,
 				videoId: video.id,
-				publishedAt: new Date(video.timestamp * 1000),
+				publishedAt: new Date(video.timestamp * 1000)
 			};
 			await db.insert(videoCache).values(entry).onConflictDoNothing();
 		}
@@ -203,7 +203,7 @@ export async function fillVideoCache(channel_id: string) {
 	} finally {
 		const finishedAt = new Date();
 		console.log(
-			`Finished cache fill for ${channel_id} at ${finishedAt.toISOString()} after ${finishedAt.getTime() - startedAt.getTime()}ms`,
+			`Finished cache fill for ${channel_id} at ${finishedAt.toISOString()} after ${finishedAt.getTime() - startedAt.getTime()}ms`
 		);
 	}
 }

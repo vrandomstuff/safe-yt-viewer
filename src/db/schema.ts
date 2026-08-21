@@ -3,7 +3,7 @@ import {
 	pgTable,
 	timestamp,
 	varchar,
-	PgColumn,
+	PgColumn
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
@@ -16,16 +16,16 @@ export const channels = pgTable("channels", {
 	channelId: varchar({ length: 24 }).notNull().primaryKey(),
 	handle: varchar({ length: 255 }).notNull().unique(),
 	avatarUrl: varchar({ length: 255 }).notNull(),
-	fullyAllowed: boolean().notNull(),
+	fullyAllowed: boolean().notNull()
 });
 export const tokens = pgTable("tokens", {
-	token: varchar({ length: 64 }).notNull().primaryKey(),
+	token: varchar({ length: 64 }).notNull().primaryKey()
 });
 export const avatarCache = pgTable("avatarCache", {
 	// Cache for getAvatarUrl because it takes SOOOOO long
 	channelId: varchar({ length: 24 }).notNull().primaryKey(),
 	avatarUrl: varchar({ length: 255 }).notNull(),
-	cachedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+	cachedAt: timestamp({ withTimezone: true }).notNull().defaultNow()
 });
 export const videoCache = pgTable("videoCache", {
 	videoId: varchar({ length: 11 }).notNull().primaryKey(),
@@ -33,7 +33,7 @@ export const videoCache = pgTable("videoCache", {
 	title: varchar({ length: 255 }).notNull(),
 	thumbnailURL: varchar({ length: 255 }).notNull().unique(),
 	publishedAt: timestamp({ withTimezone: true }).notNull(),
-	cachedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+	cachedAt: timestamp({ withTimezone: true }).notNull().defaultNow()
 });
 
 export const watchData = pgTable("watchData", {
@@ -42,15 +42,15 @@ export const watchData = pgTable("watchData", {
 	eventDate: timestamp({ withTimezone: true })
 		.notNull()
 		.primaryKey()
-		.defaultNow(),
+		.defaultNow()
 });
 
 // Videos here are allowed even when the uploader is not allowed
 export const whitelist = pgTable("whitelist", {
-	videoId: varchar({ length: 11 }).notNull().primaryKey(),
+	videoId: varchar({ length: 11 }).notNull().primaryKey()
 });
 
 // Videos here are blocked even when the uploader is allowed
 export const blacklist = pgTable("blacklist", {
-	videoId: varchar({ length: 11 }).notNull().primaryKey(),
+	videoId: varchar({ length: 11 }).notNull().primaryKey()
 });
