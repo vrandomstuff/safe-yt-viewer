@@ -46,6 +46,7 @@ export default async function Page({
 						width: "200px",
 						height: "200px"
 					}}
+					title={channel.name}
 					// This is blank since the channel name is the next thing here.
 					alt=""
 				/>

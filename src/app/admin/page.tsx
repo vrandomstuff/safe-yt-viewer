@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { reCache } from "@/app/api/reCache/[id]/[secret]/route";
 import { parseCookieString } from "@/lib/parseCookie";
+import { useRedirectIfNotAuthed } from "./auth/clientRedirectAuthed";
 
 const links = [
 	{ href: "/admin/manageWhitelist", label: "Manage whitelist" },
@@ -24,6 +25,7 @@ const buttonStyle = {
 };
 
 export default function Page() {
+	useRedirectIfNotAuthed();
 	const [recaching, setRecaching] = useState(false);
 	return (
 		<div
