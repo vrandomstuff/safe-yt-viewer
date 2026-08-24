@@ -1,1 +1,11 @@
 pnpm exec lint-staged
+
+if python3 --version >/dev/null 2>&1; then
+	PY=python3
+else
+	PY=python
+fi
+
+"$PY" generate_licenses.py || exit 1
+
+git add public/licenses.html public/licenses
