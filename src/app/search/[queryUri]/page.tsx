@@ -1,9 +1,9 @@
 import { contains, videoCache } from "@/db/schema";
-import Link from "next/link";
 import { db } from "@/instrumentation";
 import { desc } from "drizzle-orm";
 import { Video } from "@/app/Video";
 import SearchBar from "@/app/searchBar";
+import Home from "@/app/home";
 export default async function Page({
 	params,
 	searchParams
@@ -28,13 +28,7 @@ export default async function Page({
 		<>
 			<div style={{ display: "flex" }}>
 				<SearchBar query={query} />
-				<Link href="/">
-					<img
-						src="/home_icon.png"
-						alt="Go home."
-						style={{ width: 48, height: 48 }}
-					/>
-				</Link>
+				<Home />
 			</div>
 			<div className="videos">
 				{videos.map((video) => (

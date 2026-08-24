@@ -1,11 +1,21 @@
 "use server";
 import { fillVideoCache } from "@/lib/channel";
-import { videoCache, channels } from "@/db/schema";
+import { videoCache, channels, tokens } from "@/db/schema";
 import { db } from "@/instrumentation";
 import { eq } from "drizzle-orm";
 import "dotenv/config";
 import { fillVideoCacheFromWhitelist } from "@/lib/whitelistManager";
-export async function reCache(id: string) {
+export async function reCache(id: string, secret: string) {
+	const maybeDbEntrySecret = await db
+		.select()
+		.from(tokens)
+		.where(eq(tokens.token, secret));
+	if (
+		secret !== process.env.SHARED_ADMIN_SECRET &&
+		maybeDbEntrySecret.length === 0
+	) {
+		return;
+	}
 	if (id == "all") {
 		await db.delete(videoCache);
 		const channelList = await db.select().from(channels);
@@ -15,7 +25,7 @@ export async function reCache(id: string) {
 				fillVideoCache(channel.channelId);
 			}
 		}
-		fillVideoCacheFromWhitelist();
+		fillVideoCacheFromWhitelist(false);
 	} else {
 		await db.delete(videoCache).where(eq(videoCache.uploaderId, id));
 		fillVideoCache(id);
@@ -26,12 +36,9 @@ export async function GET(
 	{ params }: { params: Promise<{ id: string; secret: string }> }
 ) {
 	const { id, secret } = await params;
-	if (
-		!process.env.SHARED_ADMIN_SECRET ||
-		secret !== process.env.SHARED_ADMIN_SECRET
-	) {
+	if (secret !== process.env.SHARED_ADMIN_SECRET) {
 		return Response.json({ error: "no perms" });
 	}
-	reCache(id);
+	reCache(id, secret);
 	return Response.json({ status: "working" });
 }

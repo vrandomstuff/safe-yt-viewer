@@ -2,7 +2,7 @@ import { videoCache, watchData } from "@/db/schema";
 import { db } from "@/instrumentation";
 import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
-import Link from "next/link";
+import Home from "@/app/home";
 
 type YTEmbedProps = {
 	id: string;
@@ -44,13 +44,7 @@ export default async function YTEmbed({ id }: YTEmbedProps) {
 				allowFullScreen
 				style={{ border: 0, height: "100vh", width: "100vw" }}
 			/>
-			<Link href="/">
-				<img
-					src="/home_icon.png"
-					alt="Go home."
-					style={{ width: 48, height: 48 }}
-				/>
-			</Link>
+			<Home />
 		</>
 	);
 }

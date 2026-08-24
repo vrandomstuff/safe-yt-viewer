@@ -17,7 +17,7 @@ export type channelData = {
 export const playlist_root = "https://www.youtube.com/playlist?list=";
 
 export function getThumbnailUrl(video_id: string): string {
-	return `https://i.ytimg.com/vi/${video_id}/maxresdefault.jpg`;
+	return `https://i.ytimg.com/vi/${video_id}/hq720.jpg`;
 }
 export async function getChannelMetadata(
 	handle: string

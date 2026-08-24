@@ -39,15 +39,23 @@ export async function Video({ videoId }: videoType) {
 				<img
 					src={video.thumbnailURL}
 					alt={`Thumbnail for the video: ${video.title}`}
+					title={video.title}
 					crossOrigin="anonymous"
 					style={{
 						borderRadius: "15px",
 						maxWidth: "90vw",
-						height: "auto"
+						maxHeight: "40vh",
+						width: "420px",
+						height: "236px"
 					}}
 				/>
 				<br />
-				<h2 style={{ fontFamily: "var(--font-lato)" }}>
+				<h2
+					style={{
+						fontFamily: "var(--font-lato)",
+						maxWidth: "500px"
+					}}
+				>
 					{video.title}
 				</h2>
 			</a>

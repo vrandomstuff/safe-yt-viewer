@@ -1,3 +1,5 @@
+"use server";
+import { redirectIfNotAuthed } from "@/app/admin/auth/actions";
 import { channels, videoCache, whitelist, blacklist } from "@/db/schema";
 import { db } from "@/instrumentation";
 import {
@@ -8,7 +10,8 @@ import {
 } from "@/lib/channel";
 import { eq } from "drizzle-orm";
 
-export async function fillVideoCacheFromWhitelist() {
+export async function fillVideoCacheFromWhitelist(noOverride: boolean) {
+	redirectIfNotAuthed();
 	const startedAt = new Date();
 	console.log(`Starting whitelist cache fill at ${startedAt.toISOString()}`);
 
@@ -19,12 +22,21 @@ export async function fillVideoCacheFromWhitelist() {
 	}
 
 	const whitelistData = await db.select().from(whitelist);
+
+	const videoCacheData = await db.select().from(videoCache);
+	const videoCacheIds: string[] = [];
+	for (const data of videoCacheData) {
+		videoCacheIds.push(data.videoId);
+	}
 	for (const video of whitelistData) {
 		try {
 			if (blacklistIds.includes(video.videoId)) {
 				console.log(
 					`Skipping ${video.videoId} since it is in the blacklist`
 				);
+				continue;
+			}
+			if (videoCacheIds.includes(video.videoId) && noOverride) {
 				continue;
 			}
 			await db
@@ -88,3 +100,17 @@ export async function fillVideoCacheFromWhitelist() {
 		`Finished whitelist cache fill at ${finishedAt.toISOString()} after ${finishedAt.getTime() - startedAt.getTime()}ms`
 	);
 } // function
+
+export async function addToWhitelist(videoId: string) {
+	redirectIfNotAuthed();
+	const entry: typeof whitelist.$inferInsert = {
+		videoId: videoId
+	};
+	await db.insert(whitelist).values(entry).onConflictDoNothing();
+	fillVideoCacheFromWhitelist(true);
+}
+export async function removeFromWhitelist(videoId: string) {
+	redirectIfNotAuthed();
+	await db.delete(videoCache).where(eq(videoCache.videoId, videoId));
+	await db.delete(whitelist).where(eq(whitelist.videoId, videoId));
+}

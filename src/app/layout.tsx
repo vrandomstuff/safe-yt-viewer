@@ -20,7 +20,6 @@ const lato = Lato({
 
 export const metadata: Metadata = {
 	title: "Safe YT",
-	description: "\0",
 	icons: {
 		icon: "/apple-touch-icon.png",
 		apple: "/apple-touch-icon.png"

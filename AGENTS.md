@@ -53,9 +53,10 @@ Requires `.env` with `DATABASE_URL` (PostgreSQL) and `SHARED_ADMIN_SECRET` (admi
 - `CLAUDE.md` points here; keep it that way.
 - `fillVideoCache` in `channel.ts` **must** pass `--extractor-args 'youtubetab:approximate_date'` to yt-dlp — without it `timestamp` is null and every video is silently skipped.
 - Don't import `channel.ts` from `instrumentation.ts` — `instrumentation.ts` exports `db` which `channel.ts` imports; reversing this creates a circular dependency.
+- `register()` in `instrumentation.ts` wipes the `tokens` table on every server start and again every 24h via `setInterval`, so admin sessions don't survive either event — intentional, don't "fix" it.
 - Next 16 changed APIs: dynamic-route `params`/`searchParams` are `Promise`s that must be `await`ed; layouts use global route-aware helper types (`LayoutProps<"/">`). Read `node_modules/next/dist/docs/` before writing route code.
 - For new route files, prefer inline Promise types (`{ params }: { params: Promise<{ id: string }> }`) over the global helper types — that's the repo convention.
-- Path alias `@/*` maps to `src/*`; ESLint errors on relative parent imports (`../*`) — always use the alias.
+- Path alias `@/*` maps to `src/*`; ESLint errors on relative parent imports (`../*`) — always use the alias. `@next/next/no-img-element` is off — plain `<img>` is intentional, don't convert to `next/image`.
 - The reCache endpoint responds `"working"` immediately — `reCache()` is deliberately not awaited; cache fill continues in the background.
 - `watchData` writes happen in `src/app/embed.tsx`, not in `watch/[id]/page.tsx`. The watch page is purely an access gate (cache/whitelist/blacklist check).
 - `videoList.tsx` does not join `channels` — the `Video` component handles its own videoCache + channels queries per video (intentional N+1).

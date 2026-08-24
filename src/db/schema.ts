@@ -12,7 +12,7 @@ export function contains(col: PgColumn, value: string) {
 }
 
 export const channels = pgTable("channels", {
-	name: varchar({ length: 255 }).notNull().unique(),
+	name: varchar({ length: 255 }).notNull(),
 	channelId: varchar({ length: 24 }).notNull().primaryKey(),
 	handle: varchar({ length: 255 }).notNull().unique(),
 	avatarUrl: varchar({ length: 255 }).notNull(),
