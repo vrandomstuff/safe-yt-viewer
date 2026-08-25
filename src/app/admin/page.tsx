@@ -9,6 +9,7 @@ const links = [
 	{ href: "/admin/manageWhitelist", label: "Manage whitelist" },
 	{ href: "/admin/manageBlacklist", label: "Manage blacklist" },
 	{ href: "/admin/manageChannels", label: "Manage channels" },
+	{ href: "/admin/managePins", label: "Manage pins" },
 	{ href: "/admin/watchData", label: "Watch data" }
 ];
 
