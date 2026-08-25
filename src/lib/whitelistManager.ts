@@ -5,10 +5,10 @@ import { db } from "@/instrumentation";
 import {
 	execFileAsync,
 	getChannelAvatar,
-	getChannelMetadata,
-	getThumbnailUrl
-} from "@/lib/channel";
+	getChannelMetadata
+} from "@/lib/channelManager";
 import { eq } from "drizzle-orm";
+import { getThumbnailUrl } from "./videoManager";
 
 export async function fillVideoCacheFromWhitelist(noOverride: boolean) {
 	redirectIfNotAuthed();

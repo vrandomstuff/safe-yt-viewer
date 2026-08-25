@@ -30,7 +30,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 Next.js 16 + React 19 App Router app backed by PostgreSQL via Drizzle ORM. Uses `yt-dlp` (requires `deno` in PATH for YouTube challenge solving) to fetch YouTube channel/video metadata, caches results in the DB.
 
 - `src/instrumentation.ts` — exports `db` (drizzle instance), validates `.env` vars on startup
-- `src/lib/channel.ts` — core YouTube data fetching via yt-dlp (channel metadata, avatar, video cache fill)
+- `src/lib/channelManager.ts` — core YouTube data fetching via yt-dlp (channel metadata, avatar)
+- `src/lib/videoManager.ts` — video cache fill (`fillVideoCache`), thumbnail URLs
 - `src/lib/whitelistManager.ts` — caches whitelisted videos from channels not fully allowed; inserts those channels with `fullyAllowed: false`
 - `src/db/schema.ts` — Drizzle schema: channels, tokens, avatarCache, channelMetadataCache, videoCache, watchData, whitelist, blacklist
 - `src/app/admin/` — admin panel; logging in stores a random session token in the `tokens` table plus a 24h cookie. Guard pages with `redirectIfNotAuthed()` (`admin/auth/actions.ts`)
@@ -49,10 +50,10 @@ Requires `.env` with `DATABASE_URL` (PostgreSQL) and `SHARED_ADMIN_SECRET` (admi
 - Channel ID must start with `UC` (second char `'C'`) to convert to uploads playlist (`UU` prefix).
 - `allowedDevOrigins` in `next.config.ts` includes `192.168.0.188` — adjust for your LAN.
 - **NEVER read JSON files that look like channel IDs** — they can be huge and cause OOM.
-- Pre-commit hook (husky + lint-staged) auto-runs Prettier on staged files. Formatting is tabs (4-wide) + LF via `.editorconfig`, `trailingComma: none` via `.prettierrc`.
+- Pre-commit hook (husky + lint-staged) auto-runs Prettier on staged files, then runs `generate_licenses.py` and stages `public/licenses.html` + `public/licenses`. Formatting is tabs (4-wide) + LF via `.editorconfig`, `trailingComma: none` via `.prettierrc`.
 - `CLAUDE.md` points here; keep it that way.
-- `fillVideoCache` in `channel.ts` **must** pass `--extractor-args 'youtubetab:approximate_date'` to yt-dlp — without it `timestamp` is null and every video is silently skipped.
-- Don't import `channel.ts` from `instrumentation.ts` — `instrumentation.ts` exports `db` which `channel.ts` imports; reversing this creates a circular dependency.
+- `fillVideoCache` in `videoManager.ts` **must** pass `--extractor-args 'youtubetab:approximate_date'` to yt-dlp — without it `timestamp` is null and every video is silently skipped.
+- Don't import `channelManager.ts` from `instrumentation.ts` — `instrumentation.ts` exports `db` which `channelManager.ts` imports; reversing this creates a circular dependency.
 - `register()` in `instrumentation.ts` wipes the `tokens` table on every server start and again every 24h via `setInterval`, so admin sessions don't survive either event — intentional, don't "fix" it.
 - Next 16 changed APIs: dynamic-route `params`/`searchParams` are `Promise`s that must be `await`ed; layouts use global route-aware helper types (`LayoutProps<"/">`). Read `node_modules/next/dist/docs/` before writing route code.
 - For new route files, prefer inline Promise types (`{ params }: { params: Promise<{ id: string }> }`) over the global helper types — that's the repo convention.

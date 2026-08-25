@@ -1,4 +1,4 @@
-import { getChannelAvatar } from "@/lib/channel";
+import { getChannelAvatar } from "@/lib/channelManager";
 import "dotenv/config";
 
 export async function GET(

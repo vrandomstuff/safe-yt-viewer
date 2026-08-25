@@ -1,5 +1,5 @@
 "use server";
-import { fillVideoCache } from "@/lib/channel";
+import { fillVideoCache } from "@/lib/videoManager";
 import { videoCache, channels, tokens } from "@/db/schema";
 import { db } from "@/instrumentation";
 import { eq } from "drizzle-orm";
