@@ -11,6 +11,9 @@ export function contains(col: PgColumn, value: string) {
 	return sql`strpos(lower(${col}), lower(${value})) > 0`;
 }
 
+export const pins = pgTable("pins", {
+	videoId: varchar({ length: 11 }).notNull().primaryKey()
+});
 export const channels = pgTable("channels", {
 	name: varchar({ length: 255 }).notNull(),
 	channelId: varchar({ length: 24 }).notNull().primaryKey(),
