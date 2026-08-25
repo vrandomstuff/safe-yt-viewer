@@ -1,3 +1,4 @@
+"use server";
 import { pins } from "@/db/schema";
 import { db } from "@/instrumentation";
 import { eq } from "drizzle-orm";
