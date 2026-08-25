@@ -225,13 +225,25 @@ def render(data: dict, license_texts: dict[str, str]) -> str:
 """
 
 
+def _strip_timestamp(text: str) -> str:
+	return "\n".join(
+		line for line in text.splitlines() if "Generated " not in line or not line.strip().startswith("<p>")
+	)
+
+
 def main():
 	data = fetch_licenses()
 	for license_name, packages in EXTRA_PACKAGES.items():
 		data.setdefault(license_name, []).extend(packages)
 	license_texts = collect_license_texts(data)
 	OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-	OUTPUT.write_text(render(data, license_texts), encoding="utf-8", newline="\n")
+	new_content = render(data, license_texts)
+	if OUTPUT.exists():
+		old_content = OUTPUT.read_text(encoding="utf-8")
+		if _strip_timestamp(old_content) == _strip_timestamp(new_content):
+			print(f"{OUTPUT} unchanged ({len(license_texts)} license texts)")
+			return
+	OUTPUT.write_text(new_content, encoding="utf-8", newline="\n")
 	print(f"wrote {OUTPUT} ({len(license_texts)} license texts copied)")
 
 
