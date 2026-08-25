@@ -28,7 +28,9 @@ const eslintConfig = defineConfig([
 		".next/**",
 		"out/**",
 		"build/**",
-		"next-env.d.ts"
+		"next-env.d.ts",
+		// eslint freaks out since i am using require in this file since it is meant to be ran in a empty directory
+		"setup.js"
 	])
 ]);
 
