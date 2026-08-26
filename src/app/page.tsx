@@ -1,5 +1,6 @@
 import SearchBar from "@/app/searchBar";
 import VideoList from "@/app/videoList";
+import Link from "next/link";
 
 export default async function Page({
 	searchParams
@@ -12,7 +13,19 @@ export default async function Page({
 		: parseInt(page ?? "1", 10) || 1;
 	return (
 		<>
-			<SearchBar query="" />
+			<div style={{ display: "flex" }}>
+				<SearchBar query="" />
+				<Link href={"/pins"}>
+					<img
+						style={{
+							msTransform: "rotate(40deg)",
+							WebkitTransform: "rotate(40deg)",
+							transform: "rotate(40deg)"
+						}}
+						src="/keep.png"
+					/>
+				</Link>
+			</div>
 			<VideoList page={pageNum} />
 			<p>
 				<a
