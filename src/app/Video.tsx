@@ -11,7 +11,7 @@ export async function Video({ videoId }: videoType) {
 		.from(videoCache)
 		.where(eq(videoCache.videoId, videoId));
 	if (videoRow.length !== 1) {
-		throw new Error("Failed to get video.");
+		return <>{videoId}</>;
 	}
 	const video = videoRow[0];
 	const channelRow = await db
@@ -19,7 +19,7 @@ export async function Video({ videoId }: videoType) {
 		.from(channels)
 		.where(eq(channels.channelId, video.uploaderId));
 	if (channelRow.length === 0) {
-		throw new Error("Failed to get channel somehow.");
+		return <>{videoId}</>;
 	}
 	const channel = channelRow[0];
 	return (
