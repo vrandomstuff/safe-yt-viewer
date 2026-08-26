@@ -11,6 +11,16 @@ export default async function Page({
 	const pageNum = Array.isArray(page)
 		? parseInt(page[0] ?? "1", 10) || 1
 		: parseInt(page ?? "1", 10) || 1;
+	if (pageNum < 0) {
+		return (
+			<h1>
+				Invalid page.{" "}
+				<Link style={{ color: "blueviolet" }} href="/">
+					Press here to go home.
+				</Link>
+			</h1>
+		);
+	}
 	return (
 		<>
 			<div style={{ display: "flex" }}>

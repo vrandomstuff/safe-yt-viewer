@@ -3,6 +3,7 @@ import { db } from "@/instrumentation";
 import { Video } from "@/app/Video";
 import SearchBar from "@/app/searchBar";
 import Home from "@/app/home";
+import Link from "next/link";
 export default async function Page({
 	searchParams
 }: {
@@ -12,6 +13,16 @@ export default async function Page({
 	const pageNum = Array.isArray(page)
 		? parseInt(page[0] ?? "1", 10) || 1
 		: parseInt(page ?? "1", 10) || 1;
+	if (pageNum < 0) {
+		return (
+			<h1>
+				Invalid page.{" "}
+				<Link style={{ color: "blueviolet" }} href="/">
+					Press here to go home.
+				</Link>
+			</h1>
+		);
+	}
 	const pinRows = await db
 		.select()
 		.from(pins)
