@@ -33,7 +33,9 @@ Next.js 16 + React 19 App Router app backed by PostgreSQL via Drizzle ORM. Uses 
 - `src/lib/channelManager.ts` — core YouTube data fetching via yt-dlp (channel metadata, avatar)
 - `src/lib/videoManager.ts` — video cache fill (`fillVideoCache`), thumbnail URLs
 - `src/lib/whitelistManager.ts` — caches whitelisted videos from channels not fully allowed; inserts those channels with `fullyAllowed: false`
-- `src/db/schema.ts` — Drizzle schema: channels, tokens, avatarCache, channelMetadataCache, videoCache, watchData, whitelist, blacklist
+- `src/lib/pinManager.ts` — pin CRUD operations
+- `src/lib/blacklistManager.ts` — blacklist CRUD operations
+- `src/db/schema.ts` — Drizzle schema: pins, channels, tokens, avatarCache, channelMetadataCache, videoCache, watchData, whitelist, blacklist
 - `src/app/admin/` — admin panel; logging in stores a random session token in the `tokens` table plus a 24h cookie. Guard pages with `redirectIfNotAuthed()` (`admin/auth/actions.ts`)
 - `src/app/api/reCache/[id]/[secret]/` — re-cache endpoint; `src/app/api/getAvatar/[channelId]/[secret]/` — avatar URL endpoint. Both authenticate via `SHARED_ADMIN_SECRET` in the URL path
 - `circle.py` — standalone Python script for circular-cropping images (not part of the app)

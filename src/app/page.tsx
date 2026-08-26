@@ -32,6 +32,7 @@ export default async function Page({
 							WebkitTransform: "rotate(40deg)",
 							transform: "rotate(40deg)"
 						}}
+						alt="View pinned videos"
 						src="/keep.png"
 					/>
 				</Link>
