@@ -1,7 +1,11 @@
 import { blacklist, videoCache } from "@/db/schema";
 import { and, eq, gt } from "drizzle-orm";
-import { execFileAsync, playlist_root } from "./channelManager";
 import { db } from "@/instrumentation";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
+const playlist_root = "https://www.youtube.com/playlist?list=";
 
 export function getThumbnailUrl(video_id: string): string {
 	return `https://i.ytimg.com/vi/${video_id}/hq720.jpg`;

@@ -26,6 +26,7 @@ dos2unix.exe
 .DS_Store
 UU*.json
 UC*.json
+.*.json
 # secrets
 *.pem
 

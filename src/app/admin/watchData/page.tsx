@@ -2,21 +2,12 @@ import { watchData } from "@/db/schema";
 import { db } from "@/instrumentation";
 import { desc } from "drizzle-orm";
 import Link from "next/link";
-import { redirectIfNotAuthed } from "../auth/actions";
+import { redirectIfNotAuthed } from "@/app/admin/auth/actions";
 
 const containerStyle = {
 	padding: "20px 40px",
 	maxWidth: "1200px",
 	margin: "0 auto"
-};
-
-const linkStyle = {
-	textDecoration: "none",
-	color: "#666"
-};
-
-const headingStyle = {
-	marginBottom: "10px"
 };
 
 const tableStyle = {

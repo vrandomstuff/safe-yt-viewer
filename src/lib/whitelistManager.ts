@@ -1,14 +1,14 @@
 "use server";
 import { redirectIfNotAuthed } from "@/app/admin/auth/actions";
-import { channels, videoCache, whitelist, blacklist } from "@/db/schema";
+import { videoCache, whitelist, blacklist } from "@/db/schema";
 import { db } from "@/instrumentation";
-import {
-	execFileAsync,
-	getChannelAvatar,
-	getChannelMetadata
-} from "@/lib/channelManager";
+import { addChannel } from "@/lib/channelManager";
 import { eq } from "drizzle-orm";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { getThumbnailUrl } from "./videoManager";
+
+const execFileAsync = promisify(execFile);
 
 export async function fillVideoCacheFromWhitelist(noOverride: boolean) {
 	redirectIfNotAuthed();
@@ -53,31 +53,7 @@ export async function fillVideoCacheFromWhitelist(noOverride: boolean) {
 				{ maxBuffer: 64 * 1024 * 1024 }
 			);
 			const jsonData = JSON.parse(stdout);
-			const channelData = await getChannelMetadata(jsonData.uploader_id);
-			if (channelData == null) {
-				console.error(
-					`channelData for ${jsonData.uploader_id} is null, skipping`
-				);
-				continue;
-			}
-			const channelAvatar = await getChannelAvatar(channelData.channelId);
-			if (channelAvatar == null) {
-				console.error(
-					`channelAvatar for ${jsonData.uploader_id} is null, skipping`
-				);
-				continue;
-			}
-			const channelEntry: typeof channels.$inferInsert = {
-				name: channelData.name,
-				channelId: channelData.channelId,
-				handle: channelData.handle,
-				avatarUrl: channelAvatar,
-				fullyAllowed: false
-			};
-			await db
-				.insert(channels)
-				.values(channelEntry)
-				.onConflictDoNothing();
+			const channelData = await addChannel(jsonData.uploader_id);
 			const thumbnail = getThumbnailUrl(video.videoId);
 			const cacheEntry: typeof videoCache.$inferInsert = {
 				videoId: video.videoId,

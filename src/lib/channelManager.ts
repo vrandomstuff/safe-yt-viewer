@@ -1,16 +1,57 @@
+"use server";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { avatarCache, channelMetadataCache } from "@/db/schema";
+import { avatarCache, channelMetadataCache, channels } from "@/db/schema";
 import { db } from "@/instrumentation";
-import { and, eq, gt } from "drizzle-orm";
-export const execFileAsync = promisify(execFile);
+import { and, eq, gt, or } from "drizzle-orm";
+import { redirectIfNotAuthed } from "@/app/admin/auth/actions";
+const execFileAsync = promisify(execFile);
 export type channelData = {
 	name: string;
 	channelId: string;
 	handle: string;
 };
-export const playlist_root = "https://www.youtube.com/playlist?list=";
+//const playlist_root = "https://www.youtube.com/playlist?list=";
 
+export async function addChannel(
+	handle: string,
+	fullyAllowed: boolean = true
+): Promise<channelData> {
+	redirectIfNotAuthed();
+	const metadata = await getChannelMetadata(handle);
+	if (metadata === null) {
+		throw new Error("Invalid channel");
+	}
+	const avatar = await getChannelAvatar(metadata.channelId);
+	if (avatar === null) {
+		throw new Error("Unable to get avatar");
+	}
+
+	const entry: typeof channels.$inferInsert = {
+		name: metadata.name,
+		channelId: metadata.channelId,
+		handle: metadata.handle,
+		avatarUrl: avatar,
+		fullyAllowed: fullyAllowed
+	};
+	await db.insert(channels).values(entry).onConflictDoNothing();
+	return metadata;
+}
+
+/**
+ * @param {string} id - Channel ID or Channel handle
+ */
+export async function removeChannel(id: string) {
+	redirectIfNotAuthed();
+	await db
+		.delete(channels)
+		.where(or(eq(channels.handle, id), eq(channels.channelId, id)));
+}
+
+/**
+ * Get the metadata for a channel from the @ handle
+ * @param {string} handle - Channel handle
+ * */
 export async function getChannelMetadata(
 	handle: string
 ): Promise<channelData | null> {
