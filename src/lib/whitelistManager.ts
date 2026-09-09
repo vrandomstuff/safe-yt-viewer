@@ -53,7 +53,7 @@ export async function fillVideoCacheFromWhitelist(noOverride: boolean) {
 				{ maxBuffer: 64 * 1024 * 1024 }
 			);
 			const jsonData = JSON.parse(stdout);
-			const channelData = await addChannel(jsonData.uploader_id);
+			const channelData = await addChannel(jsonData.uploader_id, false);
 			const thumbnail = getThumbnailUrl(video.videoId);
 			const cacheEntry: typeof videoCache.$inferInsert = {
 				videoId: video.videoId,
