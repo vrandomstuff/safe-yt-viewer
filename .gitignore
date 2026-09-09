@@ -42,6 +42,10 @@ yarn-error.log*
 # vercel
 .vercel
 
+# very deployment dependent
+bubblewrap/
+public/.well-known/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
