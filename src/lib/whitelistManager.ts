@@ -11,7 +11,7 @@ import { getThumbnailUrl } from "./videoManager";
 const execFileAsync = promisify(execFile);
 
 export async function fillVideoCacheFromWhitelist(noOverride: boolean) {
-	redirectIfNotAuthed();
+	await redirectIfNotAuthed();
 	const startedAt = new Date();
 	console.log(`Starting whitelist cache fill at ${startedAt.toISOString()}`);
 
@@ -78,7 +78,7 @@ export async function fillVideoCacheFromWhitelist(noOverride: boolean) {
 } // function
 
 export async function addToWhitelist(videoId: string) {
-	redirectIfNotAuthed();
+	await redirectIfNotAuthed();
 	const entry: typeof whitelist.$inferInsert = {
 		videoId: videoId
 	};
@@ -86,7 +86,7 @@ export async function addToWhitelist(videoId: string) {
 	fillVideoCacheFromWhitelist(true);
 }
 export async function removeFromWhitelist(videoId: string) {
-	redirectIfNotAuthed();
+	await redirectIfNotAuthed();
 	await db.delete(videoCache).where(eq(videoCache.videoId, videoId));
 	await db.delete(whitelist).where(eq(whitelist.videoId, videoId));
 }

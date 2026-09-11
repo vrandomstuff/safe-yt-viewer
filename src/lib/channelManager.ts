@@ -17,7 +17,7 @@ export async function addChannel(
 	handle: string,
 	fullyAllowed: boolean = true
 ): Promise<channelData> {
-	redirectIfNotAuthed();
+	await redirectIfNotAuthed();
 	const metadata = await getChannelMetadata(handle);
 	if (metadata === null) {
 		throw new Error("Invalid channel");
@@ -42,7 +42,7 @@ export async function addChannel(
  * @param {string} id - Channel ID or Channel handle
  */
 export async function removeChannel(id: string) {
-	redirectIfNotAuthed();
+	await redirectIfNotAuthed();
 	await db
 		.delete(channels)
 		.where(or(eq(channels.handle, id), eq(channels.channelId, id)));
