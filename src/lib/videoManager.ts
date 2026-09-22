@@ -1,6 +1,7 @@
 import { blacklist, videoCache } from "@/db/schema";
 import { and, eq, gt } from "drizzle-orm";
 import { db } from "@/instrumentation";
+import { sanitizeText } from "@/lib/sanitizeText";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
@@ -103,7 +104,7 @@ export async function fillVideoCache(channel_id: string) {
 			const thumbnailUrl = getThumbnailUrl(video.id);
 			const entry: typeof videoCache.$inferInsert = {
 				uploaderId: channel_id,
-				title: video.title,
+				title: sanitizeText(video.title),
 				thumbnailURL: thumbnailUrl,
 				videoId: video.id,
 				publishedAt: new Date(video.timestamp * 1000)

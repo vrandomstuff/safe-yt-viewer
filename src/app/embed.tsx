@@ -1,5 +1,6 @@
 import { videoCache, watchData } from "@/db/schema";
 import { db } from "@/instrumentation";
+import { sanitizeText } from "@/lib/sanitizeText";
 import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import Home from "@/app/home";
@@ -30,7 +31,7 @@ export default async function YTEmbed({ id }: YTEmbedProps) {
 	}
 	const entry: typeof watchData.$inferInsert = {
 		videoId: id,
-		title: video[0].title
+		title: sanitizeText(video[0].title)
 	};
 	await db.insert(watchData).values(entry).onConflictDoNothing();
 	const origin = await getOrigin();

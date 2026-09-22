@@ -3,6 +3,7 @@ import { redirectIfNotAuthed } from "@/app/admin/auth/actions";
 import { videoCache, whitelist, blacklist } from "@/db/schema";
 import { db } from "@/instrumentation";
 import { addChannel } from "@/lib/channelManager";
+import { sanitizeText } from "@/lib/sanitizeText";
 import { eq } from "drizzle-orm";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -58,7 +59,7 @@ export async function fillVideoCacheFromWhitelist(noOverride: boolean) {
 			const cacheEntry: typeof videoCache.$inferInsert = {
 				videoId: video.videoId,
 				uploaderId: channelData.channelId,
-				title: jsonData.title,
+				title: sanitizeText(jsonData.title),
 				thumbnailURL: thumbnail,
 				publishedAt: new Date(jsonData.timestamp * 1000)
 			};
