@@ -4,6 +4,7 @@ import { desc, eq } from "drizzle-orm";
 import { Video } from "@/app/Video";
 import SearchBar from "@/app/searchBar";
 import Home from "@/app/home";
+import Link from "next/link";
 export default async function Page({
 	params,
 	searchParams
@@ -58,21 +59,21 @@ export default async function Page({
 				))}
 			</div>
 			<p>
-				<a
+				<Link
 					className="pageChangeButtons"
 					href={
 						`/channel/${id}?page=${pageNum === 1 ? pageNum : pageNum - 1}` /* this makes it go to page 1 when it is on page one*/
 					}
 				>
 					&lt;-{" "}
-				</a>
-				<a
+				</Link>
+				<Link
 					className="pageChangeButtons"
 					href={`/channel/${id}?page=${pageNum + 1}`}
 				>
 					{" "}
 					-&gt;
-				</a>
+				</Link>
 			</p>
 		</>
 	);

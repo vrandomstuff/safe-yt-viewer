@@ -4,7 +4,7 @@ export default function Home() {
 	return (
 		<Link href="/">
 			<img
-				src="/home_icon.png"
+				src={`${process.env.NEXT_PUBLIC_BASEDIR}/home_icon.png`}
 				alt="Go home."
 				style={{ width: 48, height: 48 }}
 			/>

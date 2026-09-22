@@ -15,6 +15,7 @@ yt-dlp (this is how we get the videos)
 
 Add DATABASE_URL which is the postgresql connection string format is postgresql://<Username>:<Password>@<Server address>:<Port default is 5432>/<Database name>
 Add SHARED_ADMIN_SECRET it is used to authenticate the api endpoints. KEEP IT SAFE IF IT GETS INTO THE WRONG HANDS THE VIDEOS WILL DISAPPEAR! I would recommend using the password generator function in your password manager of choice for this.
+Optional: NEXT_PUBLIC_BASEDIR Set the base directory for the server to run on
 
 # Database setup
 

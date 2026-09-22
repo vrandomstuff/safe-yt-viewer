@@ -1,6 +1,7 @@
 import { channels, videoCache } from "@/db/schema";
 import { db } from "@/instrumentation";
 import { eq } from "drizzle-orm";
+import Link from "next/link";
 
 type videoType = {
 	videoId: string;
@@ -35,7 +36,7 @@ export async function Video({ videoId }: videoType) {
 				border: "5px solid #292828"
 			}}
 		>
-			<a href={`/watch/${video.videoId}`}>
+			<Link href={`/watch/${video.videoId}`}>
 				<img
 					src={video.thumbnailURL}
 					alt={`Thumbnail for the video: ${video.title}`}
@@ -58,8 +59,8 @@ export async function Video({ videoId }: videoType) {
 				>
 					{video.title}
 				</h2>
-			</a>
-			<a href={`/channel/${channel.channelId}`}>
+			</Link>
+			<Link href={`/channel/${channel.channelId}`}>
 				<img
 					style={{
 						width: "50px",
@@ -71,7 +72,7 @@ export async function Video({ videoId }: videoType) {
 					src={channel.avatarUrl}
 					title={channel.name}
 				/>
-			</a>
+			</Link>
 			<br />
 		</div>
 	);

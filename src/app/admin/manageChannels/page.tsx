@@ -3,6 +3,7 @@ import { db } from "@/instrumentation";
 import { redirectIfNotAuthed } from "@/app/admin/auth/actions";
 import { AddToChannelsForm, RemoveFromChannelsButton } from "./channelControls";
 import { eq } from "drizzle-orm";
+import Link from "next/link";
 
 export default async function Page() {
 	await redirectIfNotAuthed();
@@ -19,7 +20,7 @@ export default async function Page() {
 			>
 				{rows.map((row) => (
 					<li key={row.handle}>
-						<a href={`/channel/${row.channelId}`}>
+						<Link href={`/channel/${row.channelId}`}>
 							<img
 								style={{
 									width: "100px",
@@ -32,7 +33,7 @@ export default async function Page() {
 								title={row.name}
 							/>
 							<h2>{row.name}</h2>
-						</a>
+						</Link>
 						<RemoveFromChannelsButton handle={row.handle} />
 					</li>
 				))}

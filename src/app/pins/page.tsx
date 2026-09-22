@@ -40,21 +40,21 @@ export default async function Page({
 				))}
 			</div>
 			<p>
-				<a
+				<Link
 					className="pageChangeButtons"
 					href={
 						`/pins?page=${pageNum === 1 ? pageNum : pageNum - 1}` /* this makes it go to page 1 when it is on page one*/
 					}
 				>
 					&lt;-{" "}
-				</a>
-				<a
+				</Link>
+				<Link
 					className="pageChangeButtons"
 					href={`/pins?page=${pageNum + 1}`}
 				>
 					{" "}
 					-&gt;
-				</a>
+				</Link>
 			</p>
 		</>
 	);

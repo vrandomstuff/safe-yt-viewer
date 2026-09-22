@@ -50,7 +50,7 @@ export default function SearchBar({ query }: searchQuery) {
 				}}
 			>
 				<img
-					src="/search.png"
+					src={`${process.env.NEXT_PUBLIC_BASEDIR}/search.png`}
 					alt="Search"
 					style={{ height: "50px" }}
 				/>

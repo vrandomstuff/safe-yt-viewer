@@ -33,24 +33,27 @@ export default async function Page({
 							transform: "rotate(40deg)"
 						}}
 						alt="View pinned videos"
-						src="/keep.png"
+						src={`${process.env.NEXT_PUBLIC_BASEDIR}/keep.png`}
 					/>
 				</Link>
 			</div>
 			<VideoList page={pageNum} />
 			<p>
-				<a
+				<Link
 					className="pageChangeButtons"
 					href={
 						`/?page=${pageNum === 1 ? pageNum : pageNum - 1}` /* this makes it go to page 1 when it is on page one*/
 					}
 				>
 					&lt;-{" "}
-				</a>
-				<a className="pageChangeButtons" href={`/?page=${pageNum + 1}`}>
+				</Link>
+				<Link
+					className="pageChangeButtons"
+					href={`/?page=${pageNum + 1}`}
+				>
 					{" "}
 					-&gt;
-				</a>
+				</Link>
 			</p>
 		</>
 	);
