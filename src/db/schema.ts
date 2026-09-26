@@ -1,6 +1,8 @@
 import {
 	boolean,
+	integer,
 	pgTable,
+	primaryKey,
 	timestamp,
 	varchar,
 	PgColumn
@@ -53,6 +55,18 @@ export const watchData = pgTable("watchData", {
 		.primaryKey()
 		.defaultNow()
 });
+
+// Heights that getM3u8Playlists has actually seen for a video, so that
+// unavailable resolutions can be rejected without spawning yt-dlp again
+export const videoResolutions = pgTable(
+	"videoResolutions",
+	{
+		videoId: varchar({ length: 11 }).notNull(),
+		height: integer().notNull(),
+		cachedAt: timestamp({ withTimezone: true }).notNull().defaultNow()
+	},
+	(t) => [primaryKey({ columns: [t.videoId, t.height] })]
+);
 
 // Videos here are allowed even when the uploader is not allowed
 export const whitelist = pgTable("whitelist", {

@@ -21,7 +21,7 @@ export default async function Page({
 		.select()
 		.from(videoCache)
 		.where(eq(videoCache.uploaderId, id))
-		.orderBy(desc(videoCache.publishedAt))
+		.orderBy(desc(videoCache.publishedAt), desc(videoCache.videoId))
 		.limit(50)
 		.offset(50 * (pageNum - 1));
 	const channelRows = await db

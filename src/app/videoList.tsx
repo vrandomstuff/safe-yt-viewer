@@ -13,7 +13,11 @@ export default async function VideoList({ page }: pageType) {
 		.from(videoCache)
 		.limit(50)
 		.offset(50 * (page - 1))
-		.orderBy(desc(videoCache.publishedAt));
+		// videoId breaks ties: yt-dlp only reports a date, so the whole table
+		// has 48 distinct publishedAt values and up to 449 videos share one.
+		// Without a unique second sort key the order inside a tie is arbitrary
+		// and OFFSET paging repeats and skips videos.
+		.orderBy(desc(videoCache.publishedAt), desc(videoCache.videoId));
 	return (
 		<div className="videos">
 			{videos.map((video) => (

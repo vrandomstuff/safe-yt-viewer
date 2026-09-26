@@ -1,6 +1,6 @@
 "use server";
 import { redirectIfNotAuthed } from "@/app/admin/auth/actions";
-import { blacklist, videoCache } from "@/db/schema";
+import { blacklist, videoCache, videoResolutions } from "@/db/schema";
 import { db } from "@/instrumentation";
 import { eq } from "drizzle-orm";
 
@@ -14,5 +14,8 @@ export async function addToBlacklist(videoId: string) {
 		videoId: videoId
 	};
 	await db.delete(videoCache).where(eq(videoCache.videoId, videoId));
+	await db
+		.delete(videoResolutions)
+		.where(eq(videoResolutions.videoId, videoId));
 	await db.insert(blacklist).values(entry);
 }

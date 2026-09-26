@@ -1,6 +1,11 @@
 "use server";
 import { redirectIfNotAuthed } from "@/app/admin/auth/actions";
-import { videoCache, whitelist, blacklist } from "@/db/schema";
+import {
+	videoCache,
+	videoResolutions,
+	whitelist,
+	blacklist
+} from "@/db/schema";
 import { db } from "@/instrumentation";
 import { addChannel } from "@/lib/channelManager";
 import { sanitizeText } from "@/lib/sanitizeText";
@@ -43,6 +48,9 @@ export async function fillVideoCacheFromWhitelist(noOverride: boolean) {
 			await db
 				.delete(videoCache)
 				.where(eq(videoCache.videoId, video.videoId));
+			await db
+				.delete(videoResolutions)
+				.where(eq(videoResolutions.videoId, video.videoId));
 			const { stdout } = await execFileAsync(
 				"yt-dlp",
 				[
@@ -89,5 +97,8 @@ export async function addToWhitelist(videoId: string) {
 export async function removeFromWhitelist(videoId: string) {
 	await redirectIfNotAuthed();
 	await db.delete(videoCache).where(eq(videoCache.videoId, videoId));
+	await db
+		.delete(videoResolutions)
+		.where(eq(videoResolutions.videoId, videoId));
 	await db.delete(whitelist).where(eq(whitelist.videoId, videoId));
 }
