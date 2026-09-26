@@ -7,10 +7,11 @@ const corsHeaders = {
 	"Access-Control-Allow-Headers": "Content-Type"
 };
 
-type ProxyReason = "invalid_request" | "upstream_error";
+type ProxyReason = "invalid_request" | "upstream_error" | "expired_googletoken";
 
 const statusForReason: Record<ProxyReason, number> = {
 	invalid_request: 400,
+	expired_googletoken: 403,
 	upstream_error: 502
 };
 
@@ -35,6 +36,25 @@ function failure(reason: ProxyReason) {
 	return Response.json(
 		{ error: reason },
 		{ status: statusForReason[reason], headers: corsHeaders }
+	);
+}
+
+// A 403 is mostly a googlevideo URL that has aged out, and a long playback
+// picks up a few of them, so logging every one floods the console. It is also
+// what a geo-block or a missing PO token looks like, so it is not dropped
+// entirely: the first 403 per video is logged, the rest stay quiet.
+const loggedExpiredTokens = new Set<string>();
+
+function logExpiredToken(id: string) {
+	if (loggedExpiredTokens.has(id)) {
+		return;
+	}
+	if (loggedExpiredTokens.size >= 100) {
+		loggedExpiredTokens.clear();
+	}
+	loggedExpiredTokens.add(id);
+	console.warn(
+		`googlevideo answered 403 for ${id}: the URL is expired, geo-blocked, or needs a PO token.`
 	);
 }
 
@@ -65,6 +85,10 @@ export async function GET(
 	} catch (error) {
 		console.error(`Error proxying ${url}: ${error}`);
 		return failure("upstream_error");
+	}
+	if (upstream.status == 403) {
+		logExpiredToken(id);
+		return failure("expired_googletoken");
 	}
 	if (!upstream.ok) {
 		console.error(`Upstream ${url} answered ${upstream.status}.`);

@@ -8,7 +8,7 @@ All routes are served from the same origin as the app, with no version prefix.
 - **CORS** — every route returns `Access-Control-Allow-Origin: *`, so browser
   clients on other origins can call them directly. `OPTIONS` on any route
   returns `204` with no body.
-- **Authentication** — the five public routes require none. They are intended
+- **Authentication** — the seven public routes require none. They are intended
   for this app's own clients on a trusted network. The two admin routes
   authenticate with `SHARED_ADMIN_SECRET` in the path.
 - **Errors** — JSON `{"error": "<reason>"}`, where `<reason>` is one of the
@@ -21,6 +21,8 @@ All routes are served from the same origin as the app, with no version prefix.
 | ------ | ------------------------------------- | ------ | ---------------------------------- |
 | `GET`  | `/api/videos`                         | none   | Paginated video list, newest first |
 | `GET`  | `/api/search`                         | none   | Search video titles                |
+| `GET`  | `/api/channel`                        | none   | Paginated list for one channel     |
+| `GET`  | `/api/pins`                           | none   | Paginated list of pinned videos    |
 | `GET`  | `/api/m3u8/{id}`                      | none   | HLS master playlist for a video    |
 | `GET`  | `/api/m3u8/{id}/proxy/{token}`        | token  | Serve one googlevideo resource     |
 | `POST` | `/api/watch/{id}`                     | none   | Record one watch of a video        |
@@ -108,6 +110,67 @@ by `publishedAt` descending.
 | Status | Body                          | Cause                                                     |
 | ------ | ----------------------------- | --------------------------------------------------------- |
 | `400`  | `{"error":"invalid_request"}` | `q` absent, empty, or only whitespace; or `page` invalid. |
+
+---
+
+## `GET /api/channel`
+
+Every cached video from one channel, newest first.
+
+### Query parameters
+
+| Name      | Type    | Required | Default | Notes                                                      |
+| --------- | ------- | -------- | ------- | ---------------------------------------------------------- |
+| `channel` | string  | **yes**  | —       | Channel ID: `UC` plus 22 more characters. Rejected if not. |
+| `page`    | integer | no       | `1`     | Must be a positive integer.                                |
+
+### Response
+
+`200` — a bare JSON array in exactly the same shape as
+[`/api/videos`](#get-apivideos), ordered by `publishedAt` descending.
+
+### Errors
+
+| Status | Body                          | Cause                                                                                        |
+| ------ | ----------------------------- | -------------------------------------------------------------------------------------------- |
+| `400`  | `{"error":"invalid_request"}` | `channel` absent, empty, or not a `UC` + 22 character ID; or `page` non-integer, `< 1`, `0`. |
+
+A malformed `channel` is a `400` on purpose. Filtering on an empty string would
+answer with a well-formed empty array, which is indistinguishable from a channel
+that simply has nothing cached — a typo would look like an empty channel.
+
+---
+
+## `GET /api/pins`
+
+Every pinned video, newest first.
+
+### Query parameters
+
+| Name   | Type    | Required | Default | Notes                       |
+| ------ | ------- | -------- | ------- | --------------------------- |
+| `page` | integer | no       | `1`     | Must be a positive integer. |
+
+### Response
+
+`200` — a bare JSON array in exactly the same shape as
+[`/api/videos`](#get-apivideos), ordered by `publishedAt` descending.
+
+### Errors
+
+| Status | Body                          | Cause                              |
+| ------ | ----------------------------- | ---------------------------------- |
+| `400`  | `{"error":"invalid_request"}` | `page` non-integer, `< 1`, or `0`. |
+
+### Notes
+
+- The list is read through `videoCache`, since the response carries each video's
+  title, thumbnail and channel. A pin whose video is no longer cached —
+  blacklisted, or dropped by a reCache — is therefore left out rather than
+  returned half-empty, and reappears if that video is cached again. The `pins`
+  page joins `videoCache` for the same reason. `addToBlacklist` keeps the `pins`
+  row, so blacklisting a pinned video hides its pin from both lists rather than
+  unpinning it; delete the pin from the admin panel to remove it outright.
 
 ---
 
@@ -243,10 +306,11 @@ URL is longer.
 
 ### Errors
 
-| Status | Body                          | Cause                                                                                           |
-| ------ | ----------------------------- | ----------------------------------------------------------------------------------------------- |
-| `400`  | `{"error":"invalid_request"}` | `id` malformed, or the token is not a URL this instance signed for this `id`.                   |
-| `502`  | `{"error":"upstream_error"}`  | `googlevideo` was unreachable or answered non-2xx. Usually an expired URL — refetch the master. |
+| Status | Body                              | Cause                                                                                                |
+| ------ | --------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `400`  | `{"error":"invalid_request"}`     | `id` malformed, or the token is not a URL this instance signed for this `id`.                        |
+| `403`  | `{"error":"expired_googletoken"}` | `googlevideo` answered `403`: the URL inside the token is expired, geo-blocked, or needs a PO token. |
+| `502`  | `{"error":"upstream_error"}`      | `googlevideo` was unreachable or answered some other non-2xx.                                        |
 
 ### Notes
 
@@ -267,6 +331,19 @@ URL is longer.
   the server can see.
 - Google's playlists are `PLAYLIST-TYPE:VOD`, so a client fetches each one once
   instead of polling it.
+- **`403` is answered separately from the other upstream failures** because
+  `hls.js` retries `5xx` but never `4xx`, so a plain `502` here is what used to
+  give an expired URL its six backed-off retries. `hlsPlayer.tsx` now watches for
+  the `403` and reloads the master playlist — the only thing that mints fresh
+  tokens — up to twice per playback, rebuilding the `hls.js` instance each time
+  because the fatal state does not clear otherwise. The native-HLS path (Safari)
+  does the same on a media-element network error, minus the status code — the
+  element never reports one — and restarts playback from the beginning when it
+  does.
+- **`403` is logged once per video, not per request.** A long playback collects
+  several stale URLs, and an unconditional log floods the console; the first one
+  per video is enough to tell an expiry apart from a persistent geo-block or a
+  missing PO token, which look identical from here.
 
 ---
 

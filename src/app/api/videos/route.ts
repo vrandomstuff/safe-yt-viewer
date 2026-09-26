@@ -1,5 +1,6 @@
 import { channels, videoCache } from "@/db/schema";
 import { db } from "@/instrumentation";
+import type { VideoListEntry } from "@/lib/videoListEntry";
 import { desc, eq } from "drizzle-orm";
 import "dotenv/config";
 
@@ -9,15 +10,6 @@ const corsHeaders = {
 	"Access-Control-Allow-Origin": "*",
 	"Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
 	"Access-Control-Allow-Headers": "Content-Type"
-};
-
-export type VideoListEntry = {
-	id: string;
-	thumbnail: string;
-	channel: string;
-	channelAvatar: string;
-	channelName: string;
-	title: string;
 };
 
 export async function GET(request: Request) {
@@ -32,7 +24,7 @@ export async function GET(request: Request) {
 		);
 	}
 
-	const results = await db
+	const results: VideoListEntry[] = await db
 		.select({
 			id: videoCache.videoId,
 			thumbnail: videoCache.thumbnailURL,

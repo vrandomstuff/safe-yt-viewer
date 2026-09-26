@@ -29,6 +29,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 **Do not run `pnpm build` while `pnpm dev` is running** — both write `.next` and the build clobbers the dev server's state. Stop the dev server first, or skip the build.
 
+`pnpm start` serves whatever was last built, so a route file you just added answers `404` until you rebuild and restart it. Only `pnpm dev` picks up new files. Check what is actually on a port before trusting a `404` — see the dev server note below.
+
 ## Architecture
 
 Next.js 16.3.4 + React 19 App Router, PostgreSQL via Drizzle ORM. Uses `yt-dlp` (needs `deno` in PATH for YouTube challenge solving) to fetch channel/video metadata and caches results in the DB. Single app — `pnpm-workspace.yaml` is **not** a monorepo, it only carries pnpm's `allowBuilds` list.
@@ -39,6 +41,7 @@ Next.js 16.3.4 + React 19 App Router, PostgreSQL via Drizzle ORM. Uses `yt-dlp` 
 - `src/lib/channelManager.ts` — channel metadata + avatar fetching via yt-dlp
 - `src/lib/whitelistManager.ts` — `fillVideoCacheFromWhitelist`; caches whitelisted videos from channels that are not fully allowed (inserts those channels with `fullyAllowed: false`)
 - `src/lib/pinManager.ts` / `src/lib/blacklistManager.ts` — pin / blacklist CRUD
+- `src/lib/sanitizeText.ts` — strips invisible and control characters from titles, because some clients are WIN1252; every `videoCache` / `watchData` title write goes through it
 - `src/db/schema.ts` — Drizzle schema: pins, channels, tokens, avatarCache, channelMetadataCache, videoCache, **videoResolutions**, watchData, whitelist, blacklist
 - `src/app/hlsPlayer.tsx` — the player: native HLS on Safari, `hls.js` everywhere else. `embed.tsx` points it at `{BASEDIR}/api/m3u8/{id}`; `watch/{id}/page.tsx` is the access gate that renders `embed.tsx`
 - `src/app/admin/` — admin panel; login stores a random session token in `tokens` plus a 24h cookie. Guard pages with `redirectIfNotAuthed()` (`admin/auth/actions.ts`)
@@ -53,18 +56,22 @@ Full reference, including request/response shapes and every error code, is in **
 
 - `GET /api/videos?page=` — 50/page, bare array, newest first
 - `GET /api/search?q=&page=` — case-insensitive title substring, same array shape
+- `GET /api/channel?channel=&page=` — same array shape, one channel; `channel` is required and must be `UC` + 22 chars
+- `GET /api/pins?page=` — same array shape, pinned videos, read through `videoCache`
 - `GET /api/m3u8/{id}?resolution=` — HLS master playlist; `resolution` is a **ceiling**, returns the highest height `<= resolution`. Only route that spawns yt-dlp
 - `GET /api/m3u8/{id}/proxy/{token}` — serves one googlevideo playlist or segment; `token` carries the target URL, HMAC-signed with `SHARED_ADMIN_SECRET`
 - `POST /api/watch/{id}` — appends one watchData row; **not idempotent**
 - `GET /api/getAvatar/{channelId}/{secret}` and `GET /api/reCache/{id}/{secret}` — admin routes, authenticate via `SHARED_ADMIN_SECRET` in the URL path
 
-The five public routes are deliberately unauthenticated (trusted internal app); each sets `Access-Control-Allow-Origin: *` and exports `OPTIONS` → `204`. The two admin routes do **neither** (API.md's intro claims every route does) and return their error bodies with **HTTP 200** (`{"error":"no perms"}`), so check the `error` key, not the status.
+The seven public routes are deliberately unauthenticated (trusted internal app); each sets `Access-Control-Allow-Origin: *` and exports `OPTIONS` → `204`. The two admin routes do **neither** (API.md's intro claims every route does) and return their error bodies with **HTTP 200** (`{"error":"no perms"}`), so check the `error` key, not the status.
+
+The four list routes all return the same array shape; the type lives in `src/lib/videoListEntry.ts` and is imported by each route, so add fields there rather than in a route.
 
 ## Environment
 
 `.env` needs `DATABASE_URL` (PostgreSQL) and `SHARED_ADMIN_SECRET`; startup throws if either is missing. Set `NEXT_PUBLIC_BASEDIR` to an **empty value — do not leave the line out**: `next.config.ts` uses `?? ""` for `basePath`, but `home.tsx`, `searchBar.tsx`, `page.tsx` and `embed.tsx` concatenate the raw variable straight into asset and m3u8 URLs, so a missing value yields `undefined/home_icon.png` and a dead player. When it has a value, every path above is served under `/{basePath}/`, and client components inline `NEXT_PUBLIC_*` at build time, so changing it needs a rebuild.
 
-`VERBOSE_LOG=1` re-enables the m3u8 progress logs, which are silent otherwise (only the exact value `1` enables them; `true`/`yes` do not). Errors always log. See `INSTALL.md` for full setup. External tools: `node`, `deno`, `pnpm`, `python3`/`python`, `pip`, `yt-dlp`.
+`VERBOSE_LOG=1` re-enables the m3u8 progress logs, which are silent otherwise (only the exact value `1` enables them; `true`/`yes` do not). Errors always log. See `INSTALL.md` for full setup — `README.md` is untouched create-next-app boilerplate and documents none of this. External tools: `node`, `deno`, `pnpm`, `python3`/`python`, `pip`, `yt-dlp`.
 
 ## Gotchas
 
@@ -72,7 +79,10 @@ The five public routes are deliberately unauthenticated (trusted internal app); 
 
 - **The master playlist must never point straight at googlevideo.** Google's CDN answers with `Vary: Origin` and only echoes `Access-Control-Allow-Origin` for YouTube's own origins, so a browser cannot read the playlists or the segments — and no player-side setting changes that, since a browser always sets its own `Origin`. `buildMasterPlaylist` emits `/api/m3u8/{id}/proxy/{token}` URLs instead, and the proxy route rewrites nested playlists as it streams them. The cost is that all video bandwidth now flows through Node.
 - **The proxy token is signed, and only `*.googlevideo.com` over https is allowed.** The signature (`hlsProxy.ts`, keyed with `SHARED_ADMIN_SECRET`, video id inside the signed message) is what lets the route serve a segment without a DB round trip and means a token can only exist if the m3u8 route minted one, which is where the `videoCache` check lives. The host allowlist is the only thing standing between that route and being an SSRF relay — keep it narrow. Tokens are stateless, so they survive restarts and are ~1.7 kB of URL; a media playlist comes back at roughly 1.4× its original size.
-- **Pagination needs a unique tiebreaker.** `publishedAt` is a date with very few distinct values — hundreds of videos can share one. Always `orderBy(desc(videoCache.publishedAt), desc(videoCache.videoId))`. Without the second key, row order inside a tie is arbitrary and `OFFSET` paging silently returns duplicates and skips rows. This was a real bug in `videoList.tsx`, `search/[queryUri]/page.tsx`, and `channel/[id]/page.tsx`; the two API routes and all three pages are now in sync, so keep it that way.
+- **Pagination needs a unique tiebreaker.** `publishedAt` is a date with very few distinct values — hundreds of videos can share one. Always `orderBy(desc(videoCache.publishedAt), desc(videoCache.videoId))`. Without the second key, row order inside a tie is arbitrary and `OFFSET` paging silently returns duplicates and skips rows. This was a real bug in `videoList.tsx`, `search/[queryUri]/page.tsx`, and `channel/[id]/page.tsx`; the four API routes and all four pages are now in sync, so keep it that way.
+- **A proxy `403` is a normal, recoverable event.** It means the googlevideo URL inside the signed token is stale (or geo-blocked / PO-token-gated), and `hls.js` never retries a 4xx, so `hlsPlayer.tsx` intercepts it, reloads the master playlist (the only thing that mints fresh tokens) and caps that at two attempts per playback, rebuilding the instance because a fatal error state does not clear otherwise. The route logs the first 403 per video and stays quiet after that — expiry is routine, but silence would also hide a persistent geo-block.
+- **`pins` rows can outlive their `videoCache` row.** `/api/pins` and `pins/page.tsx` both join `videoCache` — for the title, thumbnail and channel in the route, and so that the page skips pins whose video is gone, since `Video.tsx` renders a bare id for an uncached video. A pin without a cache row therefore vanishes from both lists and comes back if the video is ever cached again. `addToBlacklist` deliberately leaves the `pins` row alone (it drops the cache and resolution rows only), so blacklisting a pinned video hides its pin rather than unpinning it — `removeFromPins` in the admin panel is the only thing that deletes one. A `reCache` drops every cache row, so it hides every pin on that channel until the refill restores the videos.
+- **Removing a channel does not revoke its videos.** `removeChannel` (`channelManager.ts`) deletes only the `channels` row, and that channel's `videoCache` rows survive. Every list route and list view inner-joins `channels`, so those videos silently vanish from `/`, the search, pins and `/channel/{id}` (which throws `Unable to find channel`), and `Video.tsx` would render a bare id for them — but `/api/m3u8/{id}` and `watch/{id}/page.tsx` gate on `videoCache` alone and never consult `channels`, so they stay watchable by direct link. Revoking means clearing the cache (`/api/reCache/{channelId}/{secret}`) or blacklisting each video.
 - **`videoResolutions` has no cascade from `videoCache`.** Read the ids _before_ deleting, then delete resolution rows explicitly. Every cleanup already does this: the reCache route (both branches), `blacklistManager.ts`, and both `whitelistManager.ts` functions. `fillVideoCache` has only two callers, both inside the reCache route, so those cleanups cover every path.
 - **`watchData`'s primary key is `eventDate` (`defaultNow()`) and is never supplied**, so every insert is a new row and `onConflictDoNothing()` is a no-op. Don't assume inserts are de-duplicated. Two writers: `src/app/embed.tsx` (the watch page's player, rendered by `watch/{id}/page.tsx`) and `recordWatch` in `videoManager.ts` via `/api/watch`.
 - **The m3u8 route deliberately does not record watches.** A player requests the playlist several times per playback, so counting each request inflated the watch history. Watch logging is `POST /api/watch/{id}`.
@@ -89,7 +99,7 @@ The five public routes are deliberately unauthenticated (trusted internal app); 
 
 - **Never put `"use server"` in `videoManager.ts`, `hlsProxy.ts` or `sanitizeText.ts`.** It is a whole-module directive: it turns _every_ export into an async server action that must take serializable args, which those files can't satisfy (yt-dlp, `node:crypto`). It is used deliberately in `channelManager`/`pinManager`/`blacklistManager`/`whitelistManager` and `admin/auth/actions.ts` so client components can call them directly — keep that split.
 - Path alias `@/*` maps to `src/*`; ESLint errors on relative parent imports (`../*`) — always use the alias. `@next/next/no-img-element` is off, so plain `<img>` is intentional; don't convert to `next/image`.
-- Next 16: dynamic-route `params`/`searchParams` are `Promise`s that must be `await`ed. For new route files prefer inline Promise types (`{ params }: { params: Promise<{ id: string }> }`) over the global `LayoutProps<"/">` helpers — that's the repo convention.
+- Next 16: dynamic-route `params`/`searchParams` are `Promise`s that must be `await`ed. For new route files prefer inline Promise types (`{ params }: { params: Promise<{ id: string }> }`) over the global `LayoutProps<"/">` helpers — that is the convention in every page and route handler here (`layout.tsx` is the one place that uses the global helper, so leave it alone).
 - `src/app/api/m3u8/[id]/route.ts` types its error map as `Record<string, number>`, so a new failure reason silently returns 500. The newer `/api/watch` and m3u8 proxy routes do this properly with a named reason union — prefer that pattern.
 - `videoList.tsx` does not join `channels`; the `Video` component runs its own videoCache + channels queries per video (intentional N+1).
 - Formatting is tabs (4-wide) + LF via `.editorconfig`, `trailingComma: "none"` via `.prettierrc`.
@@ -97,6 +107,7 @@ The five public routes are deliberately unauthenticated (trusted internal app); 
 ### Tooling & environment
 
 - yt-dlp is called with `maxBuffer: 64 * 1024 * 1024` (64MB) — large channel dumps can be big.
+- `pnpm build` wants network: `layout.tsx` uses `next/font/google`, which fetches the font files at build time.
 - Video/avatar/channel-metadata caches expire after 30 days. Cache fill skips live streams and blacklisted videos.
 - `allowedDevOrigins` in `next.config.ts` includes `192.168.0.188` — adjust for your LAN.
 - **Never read a root JSON file whose name looks like a channel/video id.** `.gitignore` has `UC*.json` and `UU*.json` (plus `.*.json`) precisely for the dumps `get-channel-data.sh` writes next to the script, so they are invisible to `git status` and to normal listings — but a full channel dump is hundreds of MB and will OOM your context. Check sizes (`Get-Item . Length`) instead of reading them.
