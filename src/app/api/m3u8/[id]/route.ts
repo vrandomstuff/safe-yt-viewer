@@ -1,4 +1,5 @@
 import { getM3u8Playlists, type M3u8Playlists } from "@/lib/videoManager";
+import { proxyUrl } from "@/lib/hlsProxy";
 import "dotenv/config";
 
 const defaultResolution = 1080;
@@ -17,14 +18,21 @@ const statusForReason: Record<string, number> = {
 };
 
 // CODECS is omitted on purpose: yt-dlp reports no acodec for the m3u8 audio
-// itags, so there is no trustworthy RFC 6381 string to advertise
-function buildMasterPlaylist(playlists: M3u8Playlists): string {
+// itags, so there is no trustworthy RFC 6381 string to advertise.
+//
+// The URIs point back at this instance rather than straight at googlevideo:
+// a browser cannot read Google's CDN cross-origin, so the player would
+// otherwise stall on the very first playlist.
+function buildMasterPlaylist(
+	playlists: M3u8Playlists,
+	video_id: string
+): string {
 	return [
 		"#EXTM3U",
 		"#EXT-X-VERSION:4",
-		`#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio",NAME="Audio",DEFAULT=YES,AUTOSELECT=YES,URI="${playlists.audioPlaylistUrl}"`,
+		`#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio",NAME="Audio",DEFAULT=YES,AUTOSELECT=YES,URI="${proxyUrl(video_id, playlists.audioPlaylistUrl)}"`,
 		`#EXT-X-STREAM-INF:BANDWIDTH=${playlists.videoBandwidth},RESOLUTION=${playlists.videoWidth}x${playlists.videoHeight},AUDIO="audio"`,
-		playlists.videoPlaylistUrl,
+		proxyUrl(video_id, playlists.videoPlaylistUrl),
 		""
 	].join("\n");
 }
@@ -49,7 +57,7 @@ export async function GET(
 		);
 	}
 
-	return new Response(buildMasterPlaylist(result.playlists), {
+	return new Response(buildMasterPlaylist(result.playlists, id), {
 		status: 200,
 		headers: {
 			...corsHeaders,

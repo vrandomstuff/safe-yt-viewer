@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generates public/licenses.html by running `pnpm licenses ls -P --json`."""
+"""Generates public/licenses.html by running `pnpm licenses ls --json`."""
 
 import html
 import http.client
@@ -28,6 +28,12 @@ LICENSE_FILENAMES = [
 	"copying.txt",
 ]
 
+MULTIPLE_VERSIONS_NOTE = (
+	"NOTE: this package resolved to multiple versions with differing license texts.\n"
+	"Each distinct text is reproduced below.\n\n"
+)
+TEXT_DIVIDER = ("\n" + "=" * 78 + "\n\n").encode("ascii")
+
 EXTRA_PACKAGES = {
 	"Apache-2.0": [
 		{
@@ -55,7 +61,10 @@ def fetch_licenses() -> dict:
 	if not pnpm:
 		sys.exit("error: pnpm not found on PATH")
 	result = subprocess.run(
-		[pnpm, "licenses", "ls", "-P", "--json"],
+		# no -P: it limited pnpm 11 to the 77 production packages, but pnpm 12
+		# drops far more entries with it, so the filter now under-reports instead
+		# of keeping the page to what actually ships.
+		[pnpm, "licenses", "ls", "--json"],
 		cwd=ROOT,
 		capture_output=True,
 		text=True,
@@ -101,6 +110,39 @@ def download_license(url: str, destination: Path) -> bool:
 	return True
 
 
+def distinct_license_texts(pkg: dict) -> list[bytes]:
+	"""Every distinct license text across a package's installed copies.
+
+	A single package name can resolve to several versions, and those versions
+	ship different license texts whenever a copyright holder changes (debug,
+	glob-parent, balanced-match and brace-expansion all do). Keeping only the
+	first text pnpm reports drops those holders, so dedupe on content instead of
+	keeping just one path. Comparison is on bytes, so the common single-text case
+	is written out byte for byte.
+	"""
+	texts: list[bytes] = []
+	seen: set[bytes] = set()
+	for pkg_path in pkg.get("paths", []):
+		source = find_license_file(Path(pkg_path))
+		if source is None:
+			continue
+		try:
+			data = source.read_bytes()
+		except OSError:
+			continue
+		if data not in seen:
+			seen.add(data)
+			texts.append(data)
+	return texts
+
+
+def join_license_texts(texts: list[bytes]) -> bytes:
+	if len(texts) == 1:
+		return texts[0]
+	body = TEXT_DIVIDER.join(text.rstrip() + b"\n" for text in texts)
+	return MULTIPLE_VERSIONS_NOTE.encode("ascii") + body
+
+
 def collect_license_texts(data: dict) -> dict[str, str]:
 	if LICENSE_DIR.exists():
 		shutil.rmtree(LICENSE_DIR)
@@ -117,12 +159,10 @@ def collect_license_texts(data: dict) -> dict[str, str]:
 				if download_license(override_url, LICENSE_DIR / filename):
 					urls[name] = f"/licenses/{filename}"
 				continue
-			for pkg_path in pkg.get("paths", []):
-				source = find_license_file(Path(pkg_path))
-				if source:
-					shutil.copyfile(source, LICENSE_DIR / filename)
-					urls[name] = f"/licenses/{filename}"
-					break
+			texts = distinct_license_texts(pkg)
+			if texts:
+				(LICENSE_DIR / filename).write_bytes(join_license_texts(texts))
+				urls[name] = f"/licenses/{filename}"
 			else:
 				remote_url = pkg.get("licenseUrl")
 				if remote_url and download_license(remote_url, LICENSE_DIR / filename):

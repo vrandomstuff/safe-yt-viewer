@@ -49,3 +49,6 @@ public/.well-known/
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# python
+__pycache__/
