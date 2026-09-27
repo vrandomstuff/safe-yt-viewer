@@ -5,8 +5,9 @@
 '     "ready" handshake from the main thread rather than being duplicated.
 '   * The only way to talk to the main thread is the apiRequest field; the
 '     only way it talks back is apiResult. There is no direct access to
-'     roUrlTransfer, roRegistrySection or roKeyboardScreen from a component
-'     script, and no reason to want one.
+'     roUrlTransfer or roRegistrySection from a component script, and no
+'     reason to want one. The keyboard is a node in this scene, not one of
+'     them - see the dialogs section.
 
 ' Node ids mirrored in components/MainScene.xml.
 '
@@ -97,6 +98,19 @@ sub init()
     m.pageSize = 50
     m.lookahead = 15
 
+    ' StandardKeyboardDialog state. m.dialog is the live node while the keyboard
+    ' is up and invalid the rest of the time, which is what onKeyEvent tests to
+    ' stay out of its way. m.dialogButton stays -1 until a button is pressed,
+    ' m.dialogText mirrors the entered string, and m.dialogDismissed records a
+    ' Back/Home/Options, which the dialog consumes itself to close. See the
+    ' dialogs section below for why the text is mirrored rather than read.
+    m.dialog = invalid
+    m.dialogPurpose = ""
+    m.dialogText = ""
+    m.dialogButton = -1
+    m.dialogDismissed = false
+    m.dialogTab = -1
+
     paintTabs()
 
     ' Focus is deliberately NOT set here: init() runs before show(), so the
@@ -149,12 +163,6 @@ sub onApiResult()
         m.defaultBaseUrl = msg.defaultBaseUrl
         showServer()
         selectMode(m.mode, m.query)
-    else if kind = "promptServer" then
-        handleServerPrompt(msg)
-    else if kind = "promptSearch" then
-        if Len(msg.text) > 0 then
-            selectMode("search", msg.text)
-        end if
     end if
 end sub
 
@@ -323,10 +331,9 @@ end sub
 ' tab bar does.
 sub selectTab(index as Integer)
     if index = 2 then
-        ' Search goes out through the keyboard, which claims the focus itself
-        ' and gives it back when it closes. Focusing the grid underneath it
-        ' would just be undone.
-        m.top.apiRequest = { type: "promptSearch", text: m.query }
+        ' The keyboard claims the focus itself and gives it back in
+        ' onKeyboardClosed; focusing the grid underneath it would just be undone.
+        openSearchPrompt()
         return
     end if
     if index = 1 then
@@ -394,6 +401,7 @@ end sub
 ' BrightScript Integer, and a string is what an roSGNode color field accepts.
 sub paintTabs()
     if m.tabs = invalid or m.tabNodes = invalid then
+        print("DEBUG invalid tabs")
         return
     end if
     focused = focusedTab()
@@ -415,6 +423,171 @@ sub paintTabs()
         m.tabMarker.translation = offset
     end if
 end sub
+
+' ------------------------------------------------------------------ dialogs
+
+' The keyboard used to be a roKeyboardScreen, created and shown on the main
+' thread. That component is GONE, not merely discouraged: it is on Roku's
+' "Deprecated Components: January 1, 2018" list, and the whole set of SDK1
+' visual screen components was removed from the firmware in Roku OS 11.5
+' (September 2022). On this device - OS 15.3.4 - CreateObject("roKeyboardScreen")
+' returns invalid, and it fails quietly: CreateObject does not raise, the
+' `if keyboard = invalid` guard in the old main.bs just returned a cancelled
+' result, and pressing * or Options did nothing at all with nothing logged.
+'
+' StandardKeyboardDialog is the supported replacement and takes the same three
+' inputs - title, text, buttons - so it is a straight swap. It also brings
+' voice entry, which roKeyboardScreen never had.
+'
+' It lives HERE rather than on the main thread because a dialog is a NODE: it
+' joins this scene's tree through the Scene's `dialog` field and reports back
+' through field observers. There is no blocking Show() to wrap, which is
+' exactly what forced the old code onto the main thread, and nothing to send
+' over apiRequest. The main thread is involved only afterwards, for the server
+' URL the dialog ended up choosing - the one thing that needs the registry.
+sub openKeyboard(purpose as String, title as String, initial as String, buttons as Object)
+    ' Two prompts cannot be up at once: a second keypress would otherwise
+    ' replace the first dialog and silently discard what was half-typed into it.
+    if m.dialog <> invalid then
+        return
+    end if
+    dlg = CreateObject("roSGNode", "StandardKeyboardDialog")
+    if dlg = invalid then
+        print "could not create a StandardKeyboardDialog"
+        return
+    end if
+    dlg.title = title
+    dlg.text = initial
+    dlg.buttons = buttons
+    ' Three observers, none of which does the work on its own.
+    '   buttonSelected  a button was pressed. Does NOT close the dialog.
+    '   text            the entered string, mirrored into m.dialogText.
+    '   wasClosed       the one place the teardown and the follow-on happen.
+    ' `close` is WRITE_ONLY and dismisses on any value, so the button handler
+    ' has to set it - the standard dialog framework sample's own pattern.
+    ' Reading `text` and `buttonSelected` in the close handler instead would be
+    ' shorter and is not done: the node is being torn down when wasClosed
+    ' fires, which is the one moment guaranteed not to be a good time to read
+    ' its fields. Hence the mirror.
+    dlg.observeFieldScoped("buttonSelected", "onKeyboardButton")
+    dlg.observeFieldScoped("text", "onKeyboardText")
+    dlg.observeFieldScoped("wasClosed", "onKeyboardClosed")
+    m.dialog = dlg
+    m.dialogPurpose = purpose
+    m.dialogText = initial
+    m.dialogButton = -1
+    m.dialogDismissed = false
+    ' Where the key focus was, so it can go back there rather than always
+    ' landing on the grid: the search prompt is opened from the tab bar, and
+    ' putting the focus on the grid instead would move the highlight off the
+    ' tab the user is standing on.
+    m.dialogTab = focusedTab()
+    m.top.dialog = dlg
+end sub
+
+sub openSearchPrompt()
+    openKeyboard("search", "Search videos", m.query, SearchButtons())
+end sub
+
+sub openServerPrompt()
+    openKeyboard("server", "Server address", m.baseUrl, ServerButtons())
+end sub
+
+sub onKeyboardButton()
+    ' Clears a possibly stale dismissal flag. Options is documented to dismiss
+    ' the dialog, but on a dynamic keyboard it can also be voice entry, in
+    ' which case the dialog is still up - and a flag left set would turn the
+    ' next real commit into a cancellation.
+    m.dialogDismissed = false
+    m.dialogButton = m.dialog.buttonSelected
+    m.dialog.close = true
+end sub
+
+sub onKeyboardText()
+    m.dialogText = m.dialog.text
+end sub
+
+sub onKeyboardClosed()
+    ' Every value read here is a plain m.* field, never a node field: the dialog
+    ' is on its way out.
+    text = m.dialogText
+    button = m.dialogButton
+    purpose = m.dialogPurpose
+    dismissed = m.dialogDismissed
+    m.dialog = invalid
+    m.dialogPurpose = ""
+    m.dialogText = ""
+    m.dialogButton = -1
+    m.dialogDismissed = false
+
+    ' A dismissal has nothing to undo. Back, Home and Options close the dialog
+    ' themselves, and neither prompt has a Cancel button, so backing out of
+    ' either one means leaving the query and the server address as they were.
+    ' (roKeyboardScreen had a Cancel button, which is where the old
+    ' promptCancelled result came from.)
+    if not dismissed then
+        if purpose = "search" then
+            if Len(text) > 0 then
+                selectMode("search", text)
+            end if
+        else
+            handleServerPrompt(button, text)
+        end if
+    end if
+    restoreFocus()
+end sub
+
+' button indexes the buttons array, and is -1 when the dialog was committed
+' without one. That is what the keyboard's own OK key does - it is documented to
+' dismiss the dialog, and NOT documented to set buttonSelected - and it is also
+' what the old roKeyboardScreen reported through getSelectedIndex(). -1 is not
+' 1, so it takes the Save path, which is the right answer either way: the text
+' is what the user typed.
+sub handleServerPrompt(button as Integer, text as String)
+    ' ["Save", "Reset"]: 0 keeps what was typed, 1 throws it away and goes back
+    ' to the compiled-in default. The main thread is the only scope that can
+    ' reach the registry, so even a reset travels as an ordinary save.
+    if button = 1 then
+        m.top.apiRequest = { type: "saveServer", url: "", allowInsecure: m.allowInsecure }
+    else if Len(text) > 0 then
+        m.top.apiRequest = { type: "saveServer", url: text, allowInsecure: m.allowInsecure }
+    end if
+end sub
+
+' Three cases, not one. The grid is the common answer, but the tab bar is where
+' a search prompt was opened from, and while a video is playing the server
+' prompt can be opened from the playing branch of onKeyEvent - where the grid
+' is inside the hidden browseGroup and focusing it would leave the key focus on
+' an invisible node with the Video no longer receiving trick play.
+sub restoreFocus()
+    if m.playing then
+        m.video.setFocus(true)
+    else if m.dialogTab >= 0 then
+        focusTab(m.dialogTab)
+    else
+        focusGrid()
+    end if
+    m.dialogTab = -1
+end sub
+
+' NOT array literals. `["Save", "Reset"]` is a BrighterScript extension and it
+' is NOT transpiled in a .brs file, so it reaches the device verbatim and the
+' VM rejects the file with a parse error - the same trap as NewArray() and the
+' tabMarker translation. One button for search rather than none: the dialog
+' commits through its button area, and an empty one would leave nothing to
+' commit with if the keyboard's own OK key turns out not to.
+function SearchButtons() as Object
+    buttons = NewArray()
+    buttons.Push("Search")
+    return buttons
+end function
+
+function ServerButtons() as Object
+    buttons = NewArray()
+    buttons.Push("Save")
+    buttons.Push("Reset")
+    return buttons
+end function
 
 ' ---------------------------------------------------------------- playback
 
@@ -529,20 +702,26 @@ sub endPlayback()
     focusGrid()
 end sub
 
-' ----------------------------------------------------------------- settings
-
-sub handleServerPrompt(msg)
-    if msg.reset then
-        m.top.apiRequest = { type: "saveServer", url: "", allowInsecure: msg.allowInsecure }
-    else if Len(msg.url) > 0 then
-        m.top.apiRequest = { type: "saveServer", url: msg.url, allowInsecure: msg.allowInsecure }
-    end if
-end sub
-
 ' --------------------------------------------------------------------- keys
 
 function onKeyEvent(key as String, press as Boolean) as Boolean
     if not press then
+        return false
+    end if
+
+    ' A standard dialog dismisses itself on Back, Home and Options, and
+    ' onKeyEvent is asked BEFORE the focused node is, so anything returned here
+    ' would swallow those keys and leave the keyboard stuck open with no way
+    ' out. Back is not special-cased anywhere below for exactly this reason.
+    '
+    ' The three keys are flagged rather than handled: the dialog closes itself,
+    ' so all this has to do is remember that the close was a dismissal and not
+    ' a commit. onKeyboardButton() clears the flag again if the dialog turns
+    ' out to still be up.
+    if m.dialog <> invalid then
+        if key = "back" or key = "home" or key = "options" then
+            m.dialogDismissed = true
+        end if
         return false
     end if
 
@@ -612,15 +791,14 @@ function onKeyEvent(key as String, press as Boolean) as Boolean
         openServerPrompt()
         return true
     else if key = "search" then
-        m.top.apiRequest = { type: "promptSearch", text: m.query }
+        openSearchPrompt()
+        return true
+    else if key = "play" then
+        selectTab(1)
         return true
     end if
     return false
 end function
-
-sub openServerPrompt()
-    m.top.apiRequest = { type: "promptServer" }
-end sub
 
 ' ------------------------------------------------------------------ helpers
 

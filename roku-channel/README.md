@@ -12,20 +12,23 @@ project has.
 
 ## Layout
 
-| Path                       | What it is                                                                     |
-| -------------------------- | ------------------------------------------------------------------------------ |
-| `components/MainScene.xml` | The whole UI. One screen, three modes.                                         |
-| `components/MainScene.brs` | UI state machine. Component scope: no `Wait`, no `roUrlTransfer`, no registry. |
-| `source/main.bs`           | The main thread. Owns the port loop, every request, and the keyboard prompt.   |
-| `source/api.bs`            | URL building, TLS selection, settings persistence, JSON parsing.               |
-| `source/config.bs`         | Defaults: server URL, page size, playback ceiling, registry keys.              |
-| `source/roku-extern.d.bs`  | Declarations for Roku interfaces BrighterScript does not ship. Never packaged. |
+| Path                       | What it is                                                                                       |
+| -------------------------- | ------------------------------------------------------------------------------------------------ |
+| `components/MainScene.xml` | The whole UI. One screen, three modes.                                                           |
+| `components/MainScene.brs` | UI state machine, and the keyboard. Component scope: no `Wait`, no `roUrlTransfer`, no registry. |
+| `source/main.bs`           | The main thread. Owns the port loop and every request.                                           |
+| `source/api.bs`            | URL building, TLS selection, settings persistence, JSON parsing.                                 |
+| `source/config.bs`         | Defaults: server URL, page size, playback ceiling, registry keys.                                |
 
-The split is not stylistic. `roUrlTransfer`, `roRegistrySection` and
-`roKeyboardScreen` are main-thread-only on Roku — a component script that
-touches them or calls `Wait` is a runtime error, not a lint warning. The two
-files talk over exactly two interface fields: `apiRequest` (scene → main) and
-`apiResult` (main → scene).
+The split is not stylistic. `roUrlTransfer` and `roRegistrySection` are
+main-thread-only on Roku — a component script that touches them or calls `Wait`
+is a runtime error, not a lint warning. The two files talk over exactly two
+interface fields: `apiRequest` (scene → main) and `apiResult` (main → scene).
+
+The keyboard is a third thing that used to be on the wrong side of that line.
+`roKeyboardScreen` was main-thread-only for the same reason, and it was also
+deleted from the firmware — see [that section](#the-keyboard-was-not-deprecated-it-was-removed).
+Its replacement is a node, so it lives in the scene.
 
 ## Build
 
@@ -95,8 +98,14 @@ first row goes to it and **Down** comes back. Left/Right walk the tabs and wrap.
 | Left/Right | between tabs (wraps), on the tab bar               | —                           |
 | OK         | play the focused video; switch tab, on the tab bar | exit if playback failed     |
 | Back       | back to the grid, then Videos, then leave          | stop and return to the grid |
-| \*         | search (or the server prompt while playing)        | server prompt               |
+| \*         | search                                             | —                           |
 | Options    | server prompt                                      | server prompt               |
+
+Both prompts are `StandardKeyboardDialog` nodes inside the scene, so **Back**
+dismisses them — that is the dialog's own behavior, not this app's — and neither
+has a Cancel button. Backing out leaves the query and the server address exactly
+as they were. The server dialog offers **Save** and **Reset**; the search dialog
+commits with **Search**.
 
 ## Playback notes
 
@@ -129,11 +138,20 @@ first row goes to it and **Down** comes back. Left/Right walk the tabs and wrap.
   observing it, because observing a field fires the callback at a point where
   issuing another `control` write is not documented as safe. The Timer field is
   `duration` in seconds — there is no `interval`.
-- `roKeyboardScreen` trips BrighterScript's BS1129 (its bundled component list
-  contains no screen components past `roScreen`/`roSGScreen`, and it cannot be
-  extended from a declaration file), so that one call is suppressed at the call
-  site. Suppressions in this project use the numeric form — `'bs:disable 1129` —
-  because the `BS1129` string form does not match a numeric diagnostic code.
+- **The keyboard has not been run on hardware.** It is a
+  `StandardKeyboardDialog` replacing a component the device no longer has, so
+  there is nothing to compare it against. Three things to check on a real TV:
+  whether the dialog claims the key focus when `m.top.dialog` is set (the
+  keyboard does not work without it), whether the keyboard's own OK key commits
+  or only the button area does, and whether `text` fires on every keystroke. The
+  commit path survives all three answers — a close with no button press and no
+  dismissing key is treated as a commit — but the first two are assumptions
+  until someone sideloads it.
+- The dialog is grey with white text. `Scene.palette` takes an `RSGPalette` node
+  and is the documented way to make standard dialogs match the rest of an app,
+  so the Tokyo Night slots in the Colors section could be pushed into one. Not
+  done: the `colors` field is an assocarray of ten named slots and it is a
+  visual change, not a fix.
 
 ## Colors
 
@@ -356,3 +374,69 @@ Worth knowing about the same feature area:
   before `Main()` can register an observer — so a request sent from `init()` is
   normally missed. The main thread therefore offers the handshake unasked
   immediately after `show()`, and the scene ignores the duplicate.
+
+## The keyboard was not deprecated, it was removed
+
+`roKeyboardScreen` sat in `source/main.bs` behind an `if keyboard = invalid`
+guard that read like ordinary defensive code. Pressing `*` or Options did
+nothing at all. `CreateObject` did not raise, nothing was logged, and the guard
+turned the failure into a cancellation — the app reported "the user pressed
+Cancel" when in fact the component did not exist.
+
+The component is on Roku's _Deprecated Components: January 1, 2018_ list, and
+that whole set of SDK1 visual screen components — `roGridScreen`, `roListScreen`,
+`roPosterScreen`, `roKeyboardScreen` and a dozen more — was **removed from the
+firmware** in Roku OS 11.5 (September 2022). The device here runs 15.3.4, so
+this was not a warning about a future release; it had already happened and the
+only symptom was a dead key. Roku's [deprecated APIs
+page](https://developer.roku.com/dev/docs/deprecated-apis) is where the dates
+are, and `ifKeyboardScreen` is in the "Deprecated interfaces: July 1, 2017"
+list underneath — the interface behind the component.
+
+Nothing in this project's toolchain could have caught it. `CreateObject` with an
+unknown component name is a documented `invalid` return, `roSGScreen` was never
+asked to draw one, and `npm run check` has no idea what is in the firmware. The
+guard was in fact the reason it went unnoticed: it made the failure look like a
+handled case.
+
+The replacement is `StandardKeyboardDialog`, which is a **node**, not a
+component:
+
+|                 | `roKeyboardScreen`                        | `StandardKeyboardDialog`                          |
+| --------------- | ----------------------------------------- | ------------------------------------------------- |
+| where it lives  | its own screen, drawn by the OS           | a node in the scene's tree, via `Scene.dialog`    |
+| reports back    | `roKeyboardScreenEvent` on a message port | `buttonSelected` / `text` / `wasClosed` observers |
+| text in         | `.text`                                   | `.text`                                           |
+| buttons in      | `.buttons`                                | `.buttons`                                        |
+| thread          | main only — `Show()` blocks               | anywhere; it is a node                            |
+| in the firmware | no — gone since OS 11.5                   | yes, and it has voice entry                       |
+
+That last row is the whole reason the code moved. A blocking `Show()` is what
+put the keyboard on the main thread in the first place, and a node has no
+`Show()` to block on, so the prompt went back to the component script where the
+rest of the UI already was. The main thread is still involved, but only
+afterwards, and only for the one thing that needs the registry: persisting a
+server URL the user picked.
+
+Two things about the replacement that are easy to get wrong:
+
+- **`onKeyEvent` has to stand aside.** A `StandardDialog` dismisses itself on
+  Back, Home and Options, and the Scene's `onKeyEvent` is asked _before_ the
+  focused node is. Handling `back` there — which this app does, twice, further
+  down the same function — would leave the keyboard open with no way to close
+  it. So `onKeyEvent` returns `false` for everything while a dialog is up, and
+  merely _flags_ the three dismissing keys: the dialog closes itself; the flag
+  only has to tell a dismissal apart from a commit.
+- **Do not read the dialog's fields in `wasClosed`.** It fires while the node is
+  being torn down. `text` is mirrored into a plain `m.*` field by its own
+  observer instead, which is also the pattern in Roku's
+  [sample app](https://github.com/rokudev/standard-dialog-framework). Same
+  reason `buttonSelected` is read in its own handler: a button press does not
+  close the dialog — `close` is WRITE_ONLY and has to be set — so there is a
+  handler to read it in anyway.
+
+One nice side effect: the BS1129 suppression that used to sit on the
+`CreateObject("roKeyboardScreen")` line is gone, and so is
+`source/roku-extern.d.bs`, which existed only to declare that one component to
+BrighterScript. `CreateObject("roSGNode", "StandardKeyboardDialog")` is not a
+component creation as far as BS1129 is concerned, so it needs neither.

@@ -143,7 +143,6 @@
                 width="220"
                 height="48"
                 focusable="true"
-                font="fontTab"
                 color="0x9AA5CEFF"
                 horizAlign="center"
                 vertAlign="center"
@@ -154,7 +153,6 @@
                 width="220"
                 height="48"
                 focusable="true"
-                font="fontTab"
                 color="0x9AA5CEFF"
                 horizAlign="center"
                 vertAlign="center"
@@ -172,7 +170,6 @@
             translation="[96, 116]"
             width="1728"
             height="30"
-            font="fontSmall"
             color="0x565F89FF"
             text="" />
 
@@ -181,7 +178,6 @@
             translation="[96, 172]"
             width="1728"
             height="40"
-            font="fontStatus"
             color="0xFFFFFFFF"
             text="" />
 
@@ -269,7 +265,6 @@
                 translation="[160, 730]"
                 width="1600"
                 height="110"
-                font="fontPlayTitle"
                 color="0xC0CAF5FF"
                 maxLines="2"
                 text="" />
@@ -278,7 +273,6 @@
                 translation="[160, 862]"
                 width="1600"
                 height="50"
-                font="fontPlayStatus"
                 color="0xA9B1D6FF"
                 text="" />
         </Group>

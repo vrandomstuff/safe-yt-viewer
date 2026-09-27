@@ -1,6 +1,5 @@
 ' Main thread. Owns everything that is not SceneGraph: the message port, the
-' roSGScreen, the roRegistrySection, roFileSystem, roUrlTransfer and the
-' roKeyboardScreen prompts.
+' roSGScreen, the roRegistrySection, roFileSystem and roUrlTransfer.
 '
 ' Playback deliberately does NOT live here. It is a SceneGraph Video node inside
 ' MainScene, which gives us the documented state machine (state / errorCode /
@@ -8,6 +7,12 @@
 ' playlist URL is handed to the node as-is: the node fetches it, and because
 ' /api/m3u8 mints fresh proxy tokens per request, simply setting the content
 ' again is the retry.
+'
+' The keyboard is not here either. It was, as a roKeyboardScreen, until that
+' component was removed from the firmware in Roku OS 11.5; it is now a
+' StandardKeyboardDialog inside MainScene, which is a node in the scene's own
+' tree and therefore has nothing to do with the main thread. See the dialogs
+' section of components/MainScene.brs.
 '
 ' The only fields crossing the boundary are the two interface fields declared in
 ' components/MainScene.xml:
@@ -81,10 +86,6 @@ sub MainHandleRequest(m as Object, request as Object) as void
         MainStartPlayback(m, request)
     else if kind = "saveServer" then
         MainSaveServer(m, request)
-    else if kind = "promptServer" then
-        MainPush(m, MainPromptServer(m))
-    else if kind = "promptSearch" then
-        MainPush(m, MainPromptSearch(m, request))
     end if
 end sub
 
@@ -264,67 +265,3 @@ sub MainSaveServer(m as Object, request as Object) as void
         defaultBaseUrl: DEFAULT_BASE_URL
     })
 end sub
-
-function MainPromptServer(m as Object) as Object
-    result = MainRunKeyboard(m, "Server address", m.baseUrl, ["Save", "Reset"])
-    if result.cancelled then
-        return { type: "promptCancelled" }
-    end if
-    ' Button 0 is Save, 1 is Reset. getSelectedIndex() is -1 when the user
-    ' dismissed the keyboard row, which still means "take the text".
-    if result.button = 1 then
-        return { type: "promptServer", url: "", allowInsecure: m.allowInsecure, reset: true }
-    end if
-    return { type: "promptServer", url: result.text, allowInsecure: m.allowInsecure, reset: false }
-end function
-
-function MainPromptSearch(m as Object, request as Object) as Object
-    initial = ""
-    if request.DoesExist("text") then
-        initial = ApiString(request.text)
-    end if
-    result = MainRunKeyboard(m, "Search videos", initial, ["Search"])
-    if result.cancelled then
-        return { type: "promptCancelled" }
-    end if
-    return { type: "promptSearch", text: ApiTrim(result.text) }
-end function
-
-' Blocking: this is why it lives on the main thread rather than in a component
-' script. Unrelated transfer completions can land on the shared port while the
-' keyboard is up, so they are drained and ignored instead of being mistaken for
-' the keyboard result.
-function MainRunKeyboard(m as Object, title as String, initial as String, buttons as Object) as Object
-    ' BS1129 is a false positive: roKeyboardScreen is real Roku API, but
-    ' BrighterScript validates CreateObject() against its own bundled component
-    ' list, which only contains roScreen and roSGScreen, and that list cannot be
-    ' extended from a declaration file. See source/roku-extern.d.bs.
-    ' bs:disable 1129
-    keyboard = CreateObject("roKeyboardScreen")
-    ' bs:enable 1129
-    if keyboard = invalid then
-        return { cancelled: true }
-    end if
-    keyboard.title = title
-    keyboard.text = initial
-    keyboard.buttons = buttons
-    keyboard.setMessagePort(m.port)
-    keyboard.Show()
-
-    result = { cancelled: true }
-    while true
-        event = wait(0, m.port)
-        eventType = type(event)
-        if eventType = "roKeyboardScreenEvent" then
-            if event.isCancelled() then
-                result = { cancelled: true }
-            else
-                result = { cancelled: false, text: event.getText(), button: event.getSelectedIndex() }
-            end if
-            exit while
-        else if eventType = "roSGScreenEvent" and event.isScreenClosed() then
-            return { cancelled: true }
-        end if
-    end while
-    return result
-end function
