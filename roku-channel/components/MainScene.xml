@@ -1,0 +1,295 @@
+<?xml version="1.0" encoding="utf-8" ?>
+
+<!--
+    MainScene - the whole UI.
+
+    Debugging note: this file is the product of a hardware bisect. See README
+    "Two gates, and neither is sufficient" for why BrighterScript being clean
+    means very little here. Two sections there cover attributes that are
+    documented, XSD-valid, and absent below on purpose: "LabelList font crashes
+    the render thread" (the PosterGrid's caption fonts) and "a list is a single
+    column, always" (why the tab bar is Labels and not a list).
+-->
+<component name="MainScene" extends="Scene">
+    <!-- The entire bridge to the main thread. These are a direct child of
+         <component>, NOT of <script>: the docs show <interface> standalone and
+         the XSD rejects children on <script> (error BS1069). -->
+    <interface>
+        <field id="apiRequest" type="assocarray" />
+        <field id="apiResult" type="assocarray" onChange="onApiResult" />
+    </interface>
+
+    <script type="text/brightscript" uri="pkg:/components/MainScene.brs" />
+
+    <children>
+        <!-- ============================================ COLORS
+             Tokyo Night Storm. Every color in this file comes from
+             that palette.
+
+             The literals are 0xRRGGBBAA - ALPHA IS THE LAST BYTE.
+             This is the reverse of every other convention in common
+             use (CSS, Android, PIL, .NET Color.FromArgb) and getting
+             it backwards is invisible to every gate in this project:
+             the XSD types this attribute as
+             color_string_containing_hex_value_eg_RGBA but never checks
+             the order, brighterscript has no color parser at all and
+             passes the literal straight through, and `npm run check`
+             stays clean. It is only visible on a TV, where an
+             alpha-first 0xFFRRGGBB renders as a nearly transparent
+             full-strength red and the whole UI looks broken.
+
+             Confirmed three ways against
+             devtools.web.roku.com/schema/RokuSceneGraph.xsd: the Scene
+             backgroundColor default is 0x000000FF (black at full
+             alpha, which read alpha-first would be invisible), every
+             opaque default ends in ff, and optionsColor/optionsDimColor
+             are 0xddddddff / 0xdddddd44 - same RGB, dimmed purely by
+             the trailing byte. scene.md's own example,
+             scene.backgroundColor="0xEB1010FF", is a red.
+
+             The one literal that is not FF-terminated is the play
+             scrim: 0x24283BC0, the surface hue at 75% alpha.
+
+               surface          #24283B   storm editor background
+               primary text     #C0CAF5   storm foreground
+               secondary text   #A9B1D6   storm editor foreground
+               dim text         #9AA5CE   storm markdown/html text
+               muted / chrome   #565F89   storm comment
+               accent / focus   #7AA2F7   storm blue
+
+             The text ramp is four steps and each one is a real slot in
+             the palette, not a brightened or darkened interpolation of
+             one. Brightness descends monotonically with importance:
+             primary 9.02:1, secondary 6.90:1, dim 6.00:1, muted 2.35:1,
+             against the #24283B surface. The accent is 5.78:1, and the
+             play scrim is 13:1 even composited over a white frame.
+
+             #565F89 is below the 3:1 legibility floor and is meant to
+             be: it carries the server URL and the control hints, which
+             are looked at last and read once. Anything that must be
+             noticed - the selected tab, a video title, a failure - sits
+             at 5.78:1 or better.
+             ================================================ -->
+
+        <Font id="fontSmall" size="20" />
+        <Font id="fontStatus" size="24" />
+        <Font id="fontTab" size="28" />
+        <Font id="fontPlayTitle" size="34" />
+        <Font id="fontPlayStatus" size="24" />
+
+        <!-- The Video node's `state` field is sampled rather than observed, so
+             it needs something to tick it. Note the field is `duration` in
+             seconds, not `interval`. The main thread is the only place a
+             blocking Wait() is safe, which is why this is a Timer and not a
+             loop in onApiResult. -->
+        <Timer id="stateTimer" repeat="true" duration="0.5" />
+
+        <Rectangle id="background" width="1920" height="1080" color="0x24283BFF" />
+
+        <!-- Mode picker. THREE FOCUSABLE LABELS IN A GROUP, not a
+             LabelList, and the reason is not a style choice.
+
+             Roku's "Lists and grids" reference is explicit: "Lists are a
+             single column of items arranged vertically", and ArrayGrid's
+             numColumns is documented as "This field is not used for lists".
+             There is no attribute that turns a LabelList into a horizontal
+             strip. numRows is the number of VISIBLE rows, so numRows="1"
+             does not turn the items sideways - it makes the node a
+             one-row-tall window onto a vertical list.
+
+             The previous LabelList had exactly that: a 300x56 window at
+             [96,44] that showed one of the three tab names at a time and
+             scrolled the other two out of view, and being a list it
+             swallowed every up/down press, so the focus could land on it
+             and never leave. Both symptoms, one wrong node type.
+
+             Labels have none of those problems. Each has a real width and
+             height, so nothing is clipped, and they do not consume arrow
+             keys, so the focus can move both ways. Left/right/ok/down are
+             handled explicitly in onKeyEvent rather than left to the focus
+             chain, so the wrap is ours; see TabWidth(), focusTab() and
+             focusedTab() in MainScene.brs.
+
+             Two indicators, because selection and focus are different
+             things - the user arrows onto a tab before committing to it
+             with OK. tabMarker, the accent underline, marks the SELECTED
+             tab; text brightness marks the tab holding the key focus. Both
+             are maintained by paintTabs().
+
+             The color on each Label is only a resting value: init() runs
+             paintTabs() before show(), so the script owns these before the
+             first frame. The literal in the script is the same
+             0xRRGGBBAA (alpha last) dim tier as everywhere else.
+
+             A Font on a Label is safe. The hardware bisect that ruled out
+             font= on a LabelList and caption fonts on a PosterGrid (see
+             README, "LabelList font crashes the render thread") left every
+             Label alone, which is why the tab bar can have a real font now
+             that it is made of Labels. -->
+        <Group id="tabs" translation="[96, 44]">
+            <Label
+                id="tab0"
+                width="220"
+                height="48"
+                focusable="true"
+                font="fontTab"
+                color="0x9AA5CEFF"
+                horizAlign="center"
+                vertAlign="center"
+                text="Videos" />
+            <Label
+                id="tab1"
+                translation="[220, 0]"
+                width="220"
+                height="48"
+                focusable="true"
+                font="fontTab"
+                color="0x9AA5CEFF"
+                horizAlign="center"
+                vertAlign="center"
+                text="Pins" />
+            <Label
+                id="tab2"
+                translation="[440, 0]"
+                width="220"
+                height="48"
+                focusable="true"
+                font="fontTab"
+                color="0x9AA5CEFF"
+                horizAlign="center"
+                vertAlign="center"
+                text="Search" />
+            <Rectangle
+                id="tabMarker"
+                translation="[0, 52]"
+                width="220"
+                height="4"
+                color="0x7AA2F7FF" />
+        </Group>
+
+        <Label
+            id="serverLabel"
+            translation="[96, 116]"
+            width="1728"
+            height="30"
+            font="fontSmall"
+            color="0x565F89FF"
+            text="" />
+
+        <Label
+            id="statusLabel"
+            translation="[96, 172]"
+            width="1728"
+            height="40"
+            font="fontStatus"
+            color="0xFFFFFFFF"
+            text="" />
+
+        <!-- Wrapper so the browser and the player can be swapped without
+             each one touching the other's visibility. -->
+        <Group id="browseGroup">
+            <!-- No width/height either: the grid derives its extent from
+                 numColumns/numRows, basePosterSize and itemSpacing, so
+                 translation is all that positions it. Unlike a list, a grid
+                 does use both values of itemSpacing.
+
+                 NO caption1Font / caption2Font, and that is not an oversight.
+                 Attaching a Font to a list or grid item renderer kills the
+                 render thread on this firmware (Roku OS 15.3.4) as soon as the
+                 node has CONTENT, with a silent EXIT_SYSTEM_KILL and no
+                 BrightScript error. Confirmed on hardware: this PosterGrid
+                 died about five seconds in, right after the first page of 50
+                 videos was appended, and an earlier LabelList tab bar died the
+                 moment it was given three items. With no font attached, both
+                 survive populated. Label nodes are unaffected - every font in
+                 this file is on a Label, which is also why the tab bar above
+                 is Labels. Captions therefore fall back to the system
+                 default. -->
+            <PosterGrid
+                id="grid"
+                translation="[144, 244]"
+                numColumns="6"
+                numRows="3"
+                basePosterSize="[252, 142]"
+                itemSpacing="[24, 28]"
+                posterDisplayMode="scaleToFit"
+                useAtlas="false"
+                caption1Color="0xC0CAF5FF"
+                caption1NumLines="2"
+                caption2Color="0xA9B1D6FF"
+                caption2NumLines="1"
+                captionHorizAlignment="left"
+                captionVertAlignment="below"
+                enableCaptionScrolling="false" />
+        </Group>
+
+        <Group id="playGroup" visible="false">
+            <!-- No width/height, deliberately: a Video node with neither set
+                 defaults to the screen, so the picture takes the screen's width
+                 and height in whatever display mode the TV is in. The previous
+                 explicit width="1920" height="1080" did not match, and the
+                 picture was not filling the screen. What the screen actually
+                 measures is not recorded here because it could not be read back
+                 from the device - see below - and hardcoding a guess is what
+                 caused the bug in the first place. Do not put the numbers back.
+
+                 There is also no ScalingMode attribute: it is not a field of a
+                 Video node, and setting it only logs "Tried to set nonexistent
+                 field "ScalingMode" of a "Video" node". The node scaling the
+                 picture to its own bounds is what does the fitting.
+
+                 The screen size is deliberately not hardcoded anywhere. It
+                 cannot be read back: m.top.width, the scene node's width from
+                 the main thread, and roDeviceInfo.GetDisplaySize()'s keys all
+                 come back invalid on this firmware, and roDeviceInfo's array
+                 exposes neither GetKeys nor usable indices. Letting the node
+                 default to the screen is the one approach that cannot be wrong
+                 for whatever display mode the TV is in. The overlay below is
+                 still laid out in explicit 1920x1080 coordinates, which is the
+                 open question if the UI turns out to need a different design
+                 size. -->
+            <Video id="video" focusable="true" />
+        </Group>
+
+        <!-- Deliberately NOT a child of playGroup. A playing Video node is
+             composited above its later siblings, so an overlay declared inside
+             the same group is drawn underneath the picture and never seen -
+             which is exactly what happened: the title and status were set
+             correctly (verified over sgnodes while a video was playing) and
+             still invisible. Declared here, after playGroup, it paints on top. -->
+        <Group id="playOverlay" visible="false">
+            <!-- A bottom scrim, NOT a full-screen curtain, so the picture stays
+                 visible. The trailing C0 is 75% alpha, which keeps the primary
+                 text legible over a bright frame without going fully black -
+                 still 13:1 against white. Same hue as the surface, so the
+                 overlay does not drift out of tone. -->
+            <Rectangle translation="[0, 690]" width="1920" height="390" color="0x24283BC0" />
+            <Label
+                id="playTitle"
+                translation="[160, 730]"
+                width="1600"
+                height="110"
+                font="fontPlayTitle"
+                color="0xC0CAF5FF"
+                maxLines="2"
+                text="" />
+            <Label
+                id="playStatus"
+                translation="[160, 862]"
+                width="1600"
+                height="50"
+                font="fontPlayStatus"
+                color="0xA9B1D6FF"
+                text="" />
+        </Group>
+
+        <Label
+            id="hintLabel"
+            translation="[96, 1014]"
+            width="1728"
+            height="32"
+            font="fontSmall"
+            color="0x565F89FF"
+            text="up tabs      OK play      back leave      * search      options server" />
+    </children>
+</component>

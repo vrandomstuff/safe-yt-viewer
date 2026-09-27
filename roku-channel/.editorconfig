@@ -1,0 +1,10 @@
+# The repo root pins tabs for the web app. BrightScript and SceneGraph XML
+# read much better at 4 spaces (Roku's own samples and docs use 4), so override
+# the inherited indent style for this directory only. The root's end_of_line,
+# charset, insert_final_newline and trim_trailing_whitespace are inherited.
+[*]
+indent_style = space
+indent_size = 4
+
+[*.{brs,bs,xml,json}]
+indent_size = 4

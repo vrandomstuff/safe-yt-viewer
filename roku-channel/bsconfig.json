@@ -1,0 +1,11 @@
+{
+    "rootDir": ".",
+    "files": [
+        "manifest",
+        "source/**/*.*",
+        "components/**/*.*",
+        "images/**/*.*"
+    ],
+    "outFile": "./out/roku-channel.zip",
+    "createPackage": true
+}

@@ -1,0 +1,330 @@
+' Main thread. Owns everything that is not SceneGraph: the message port, the
+' roSGScreen, the roRegistrySection, roFileSystem, roUrlTransfer and the
+' roKeyboardScreen prompts.
+'
+' Playback deliberately does NOT live here. It is a SceneGraph Video node inside
+' MainScene, which gives us the documented state machine (state / errorCode /
+' errorStr) and a retry path without re-implementing a player. The master
+' playlist URL is handed to the node as-is: the node fetches it, and because
+' /api/m3u8 mints fresh proxy tokens per request, simply setting the content
+' again is the retry.
+'
+' The only fields crossing the boundary are the two interface fields declared in
+' components/MainScene.xml:
+'   apiRequest  scene -> main, set by MainScene
+'   apiResult   main -> scene, written here
+
+sub Main()
+    m = CreateObject("roAssociativeArray")
+    m.port = CreateObject("roMessagePort")
+    m.pending = invalid
+    m.quit = false
+
+    settings = ApiLoadSettings()
+    m.baseUrl = settings.baseUrl
+    m.allowInsecure = settings.allowInsecure
+
+    m.screen = CreateObject("roSGScreen")
+    m.screen.setMessagePort(m.port)
+    m.scene = m.screen.CreateScene("MainScene")
+    m.screen.show()
+    ' Registered AFTER show(). Observing a field on a node that has been created
+    ' but not yet started silently never delivers on this firmware, so an
+    ' observer set up before show() misses every request the scene makes and the
+    ' grid sits on "Loading..." forever with no error anywhere to explain it.
+    m.scene.observeField("apiRequest", m.port)
+
+    ' Pushed proactively rather than waiting for the scene to ask, so the scene
+    ' never depends on the timing of that observeField call. MainScene treats a
+    ' second "ready" as a no-op.
+    MainPush(m, MainHandshake(m))
+
+    while not m.quit
+        msg = wait(0, m.port)
+        MainHandleMessage(m, msg)
+    end while
+end sub
+
+sub MainHandleMessage(m as Object, msg as Object) as void
+    msgType = type(msg)
+    if msgType = "roSGScreenEvent" then
+        if msg.isScreenClosed() then
+            m.quit = true
+        end if
+    else if msgType = "roSGNodeEvent" then
+        MainHandleRequest(m, msg.getData())
+    else if msgType = "roUrlEvent" then
+        MainHandleUrlEvent(m, msg)
+    end if
+end sub
+
+sub MainPush(m as Object, payload as Object) as void
+    if m.quit then
+        return
+    end if
+    m.scene.apiResult = payload
+end sub
+
+sub MainHandleRequest(m as Object, request as Object) as void
+    if Type(request) <> "roAssociativeArray" then
+        return
+    end if
+    if not request.DoesExist("type") then
+        return
+    end if
+    kind = request.type
+    if kind = "ready" then
+        MainPush(m, MainHandshake(m))
+    else if kind = "loadPage" then
+        MainLoadPage(m, request)
+    else if kind = "play" then
+        MainStartPlayback(m, request)
+    else if kind = "saveServer" then
+        MainSaveServer(m, request)
+    else if kind = "promptServer" then
+        MainPush(m, MainPromptServer(m))
+    else if kind = "promptSearch" then
+        MainPush(m, MainPromptSearch(m, request))
+    end if
+end sub
+
+' The scene cannot read config.bs, so everything it needs to know about paging
+' and the current server arrives with the handshake.
+function MainHandshake(m as Object) as Object
+    return {
+        type: "ready",
+        baseUrl: m.baseUrl,
+        allowInsecure: m.allowInsecure,
+        defaultBaseUrl: DEFAULT_BASE_URL,
+        pageSize: PAGE_SIZE,
+        pageLookahead: PAGE_LOOKAHEAD
+    }
+end function
+
+' ------------------------------------------------------------------ pages
+
+sub MainLoadPage(m as Object, request as Object) as void
+    reply = {
+        type: "page",
+        mode: ApiString(request.mode),
+        page: 1,
+        reqId: 0,
+        ok: false,
+        status: 0,
+        reason: "",
+        ' CreateObject, not []: BrighterScript does not transpile array literals,
+        ' so a [] anywhere in here reaches the device as-is and the VM rejects
+        ' the file with a parse error. `true` = growable, which matters because
+        ' items are appended to below.
+        items: CreateObject("roArray", 0, true)
+    }
+    if request.DoesExist("reqId") then
+        reply.reqId = request.reqId
+    end if
+    if request.DoesExist("page") then
+        reply.page = StrToI(ApiString(request.page))
+    end if
+    if reply.page < 1 then
+        reply.reason = "invalid_request"
+        MainPush(m, reply)
+        return
+    end if
+
+    ' One transfer at a time: roUrlTransfer on the main thread has a single
+    ' in-flight slot, and the scene guards against overlapping requests anyway.
+    if m.pending <> invalid then
+        reply.reason = "busy"
+        MainPush(m, reply)
+        return
+    end if
+
+    transfer = ApiBuildTransfer(m, true)
+    if transfer = invalid then
+        reply.reason = "no_transfer"
+        MainPush(m, reply)
+        return
+    end if
+
+    query = ""
+    if request.DoesExist("query") then
+        query = ApiString(request.query)
+    end if
+    ' Hold onto the transfer. If the last reference to an roUrlTransfer goes away
+    ' while a request is in flight, the VM collects it and the request dies with
+    ' getResponseCode() = -10001 / getFailureReason() = "Cancelled" - which looks
+    ' exactly like the server hanging up. Storing it in m.pending is what keeps
+    ' it alive until the reply arrives.
+    m.pending = { reply: reply, transfer: transfer }
+    transfer.setUrl(ApiListUrl(m, reply.mode, reply.page, query))
+    if not transfer.AsyncGetToString() then
+        m.pending = invalid
+        reply.reason = "transfer_failed"
+        MainPush(m, reply)
+    end if
+end sub
+
+sub MainHandleUrlEvent(m as Object, msg as Object) as void
+    ' No identity check: the page transfer is the only one with a message port,
+    ' and MainLoadPage refuses to start a second while one is in flight.
+    if m.pending = invalid then
+        return
+    end if
+
+    reply = m.pending.reply
+    m.pending = invalid
+    reply.status = msg.getResponseCode()
+    ' roUrlEvent has no isRequestSucceeded() and no isTransferComplete(); calling
+    ' either is a runtime error (&hf4), not a false. The whole success test is
+    ' GetInt() = 1 (transfer complete) plus a 2xx response code. GetResponseCode()
+    ' is negative for transport-level failures, which the 2xx range excludes
+    ' anyway.
+    body = ""
+    if msg.getInt() = 1 and reply.status >= 200 and reply.status < 300 then
+        body = msg.getString()
+    else
+        ' A 4xx/5xx lands here too, not just a transport failure: the body is
+        ' empty for those, so there is nothing worth parsing and getFailureReason()
+        ' is the only explanation available. That is why there is no separate
+        ' "http_error" branch - the 2xx test above already covers it.
+        reply.reason = "transfer_failed"
+        reply.detail = msg.getFailureReason()
+        print "page load failed: status=" ; reply.status ; " reason=" ; reply.detail
+        MainPush(m, reply)
+        return
+    end if
+
+    parsed = ApiParseList(body)
+    if not parsed.ok then
+        reply.reason = parsed.reason
+        MainPush(m, reply)
+        return
+    end if
+    reply.ok = true
+    reply.items = parsed.items
+    MainPush(m, reply)
+end sub
+
+' ------------------------------------------------------------------ play
+
+' One request per selection does two things: it records the watch, and it hands
+' back the master playlist URL. Keeping them together is deliberate - the watch
+' route is NOT idempotent (every POST inserts a watchData row), so it must fire
+' exactly once per selection while the scene may still make several playback
+' attempts against the same URL.
+sub MainStartPlayback(m as Object, request as Object) as void
+    videoId = ""
+    if request.DoesExist("videoId") then
+        videoId = ApiString(request.videoId)
+    end if
+    if videoId = "" then
+        MainPush(m, { type: "playFailed", videoId: "", reason: "invalid_request" })
+        return
+    end if
+    MainRecordWatch(m, videoId)
+    MainPush(m, {
+        type: "play",
+        videoId: videoId,
+        playlistUrl: ApiPlaylistUrl(m, videoId),
+        playbackAttempts: PLAYBACK_ATTEMPTS
+    })
+end sub
+
+' Fire and forget. Nothing consumes the response, and the identity check in
+' MainHandleUrlEvent keeps it from being mistaken for a page result.
+sub MainRecordWatch(m as Object, videoId as String) as void
+    transfer = ApiBuildTransfer(m, false)
+    if transfer = invalid then
+        return
+    end if
+    transfer.setUrl(ApiWatchUrl(m, videoId))
+    transfer.setRequest("")
+    if not transfer.AsyncPostFromString("") then
+        print "watch POST could not start for "; videoId
+    end if
+end sub
+
+' ---------------------------------------------------------------- settings
+
+sub MainSaveServer(m as Object, request as Object) as void
+    url = ""
+    if request.DoesExist("url") then
+        url = request.url
+    end if
+    m.baseUrl = ApiNormalizeBaseUrl(url)
+    insecure = false
+    if request.DoesExist("allowInsecure") then
+        insecure = request.allowInsecure
+    end if
+    m.allowInsecure = ApiIsTrue(insecure)
+    ApiSaveSettings(m)
+    MainPush(m, {
+        type: "server",
+        baseUrl: m.baseUrl,
+        allowInsecure: m.allowInsecure,
+        defaultBaseUrl: DEFAULT_BASE_URL
+    })
+end sub
+
+function MainPromptServer(m as Object) as Object
+    result = MainRunKeyboard(m, "Server address", m.baseUrl, ["Save", "Reset"])
+    if result.cancelled then
+        return { type: "promptCancelled" }
+    end if
+    ' Button 0 is Save, 1 is Reset. getSelectedIndex() is -1 when the user
+    ' dismissed the keyboard row, which still means "take the text".
+    if result.button = 1 then
+        return { type: "promptServer", url: "", allowInsecure: m.allowInsecure, reset: true }
+    end if
+    return { type: "promptServer", url: result.text, allowInsecure: m.allowInsecure, reset: false }
+end function
+
+function MainPromptSearch(m as Object, request as Object) as Object
+    initial = ""
+    if request.DoesExist("text") then
+        initial = ApiString(request.text)
+    end if
+    result = MainRunKeyboard(m, "Search videos", initial, ["Search"])
+    if result.cancelled then
+        return { type: "promptCancelled" }
+    end if
+    return { type: "promptSearch", text: ApiTrim(result.text) }
+end function
+
+' Blocking: this is why it lives on the main thread rather than in a component
+' script. Unrelated transfer completions can land on the shared port while the
+' keyboard is up, so they are drained and ignored instead of being mistaken for
+' the keyboard result.
+function MainRunKeyboard(m as Object, title as String, initial as String, buttons as Object) as Object
+    ' BS1129 is a false positive: roKeyboardScreen is real Roku API, but
+    ' BrighterScript validates CreateObject() against its own bundled component
+    ' list, which only contains roScreen and roSGScreen, and that list cannot be
+    ' extended from a declaration file. See source/roku-extern.d.bs.
+    ' bs:disable 1129
+    keyboard = CreateObject("roKeyboardScreen")
+    ' bs:enable 1129
+    if keyboard = invalid then
+        return { cancelled: true }
+    end if
+    keyboard.title = title
+    keyboard.text = initial
+    keyboard.buttons = buttons
+    keyboard.setMessagePort(m.port)
+    keyboard.Show()
+
+    result = { cancelled: true }
+    while true
+        event = wait(0, m.port)
+        eventType = type(event)
+        if eventType = "roKeyboardScreenEvent" then
+            if event.isCancelled() then
+                result = { cancelled: true }
+            else
+                result = { cancelled: false, text: event.getText(), button: event.getSelectedIndex() }
+            end if
+            exit while
+        else if eventType = "roSGScreenEvent" and event.isScreenClosed() then
+            return { cancelled: true }
+        end if
+    end while
+    return result
+end function

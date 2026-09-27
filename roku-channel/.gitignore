@@ -1,0 +1,6 @@
+node_modules
+out
+
+# A private CA is specific to one LAN. Committing one would make every other
+# install of this channel trust the machine it was captured from.
+source/certs/
