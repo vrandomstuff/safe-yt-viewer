@@ -1,22 +1,23 @@
 {
-    "name": "safe-yt-roku",
-    "version": "1.0.0",
-    "description": "Roku channel for the safe-yt-viewer API",
-    "license": "AGPL-3.0",
-    "author": "",
-    "type": "commonjs",
-    "main": "index.js",
-    "scripts": {
-        "build": "npx brighterscript --rootDir .",
-        "check": "npx brighterscript --rootDir . --createPackage false --diagnostic-level hint",
-        "watch": "npx brighterscript --rootDir . --watch",
-        "deploy": "npx brighterscript --rootDir . --deploy"
-    },
-    "ropm": {
-        "rootDir": "./"
-    },
-    "devDependencies": {
-        "brighterscript": "^0.73.5",
-        "ropm": "^0.11.11"
-    }
+	"name": "safe-yt-roku",
+	"version": "1.0.0",
+	"description": "Roku client for the safe-yt project, serves as refrence implementation for custom clients.",
+	"license": "AGPL-3.0",
+	"author": "",
+	"type": "commonjs",
+	"main": "index.js",
+	"scripts": {
+		"build": "npx brighterscript",
+		"deploy": "npx brighterscript --deploy"
+	},
+	"ropm": {
+		"rootDir": "./"
+	},
+	"devDependencies": {
+		"brighterscript": "^0.73.5",
+		"ropm": "^0.11.11"
+	},
+	"dependencies": {
+		"roku-requests": "^1.2.0"
+	}
 }

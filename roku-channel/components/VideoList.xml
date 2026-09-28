@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<component name="VideoList" extends="Group">
+
+    <interface>
+        <field id="videos" type="array" />
+        <field id="selectedVideo" type="assocarray" />
+        <field id="page" type="integer" />
+        <field id="grid" type="node" />
+    </interface>
+
+    <children>
+        <MarkupGrid
+            id="grid"
+            translation="[60, 60]"
+            itemSize="[500, 320]"
+            numColumns="2"
+            numRows="2"
+            itemComponentName="VideoDisplay"
+            focusable="true"
+            vertFocusAnimationStyle="floatingFocus"
+            drawFocusFeedback="true"
+            drawFocusFeedbackOnTop="true"
+        />
+    </children>
+
+    <script type="text/brighterscript" uri="VideoList.bs" />
+
+</component>

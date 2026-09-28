@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<component name="VideoContent" extends="ContentNode">
+    <interface>
+        <field id="videoId" type="string" />
+        <field id="thumbnail" type="string" />
+        <field id="channelId" type="string" />
+        <field id="channelAvatar" type="string" />
+        <field id="channelName" type="string" />
+        <field id="title" type="string" />
+    </interface>
+</component>

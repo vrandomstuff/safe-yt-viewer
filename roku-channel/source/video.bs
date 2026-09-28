@@ -1,0 +1,17 @@
+sub playVideo(id as string, title as string)
+    videoContent = createObject("RoSGNode", "ContentNode")
+    videoContent.url = API_BASE+"/m3u8/"+id
+    videoContent.title = title
+    videoContent.streamformat = "hls"
+    m.video = CreateObject("roSGNode", "VideoPlayer")
+    m.video.content = videoContent
+    m.video.control = "play"
+    m.video.visible = "true"
+    m.top.appendChild(m.video)
+    m.video.setFocus(true)
+
+    ' submit watch
+    m.task = CreateObject("roSGNode", "SubmitWatchTask")
+    m.task.vId = id
+    m.task.control = "run"
+end sub

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<component name="VideoPlayer" extends="Group">
+    <interface>
+        <field id="content" type="node" />
+        <field id="control" type="string" />
+        <field id="state" type="string" />
+    </interface>
+
+    <children>
+        <Video id="videoElement"/>
+    </children>
+
+    <script type="text/brightscript" uri="VideoPlayer.bs" />
+    
+</component>

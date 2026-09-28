@@ -1,346 +1,37 @@
-' All of the non-SceneGraph plumbing: TLS setup, the roRegistrySection that
-' remembers the server address, URL construction, and the tiny slice of JSON
-' parsing the list routes need.
-'
-' Everything here runs in main.brs's scope on the main thread, which is required:
-' roUrlTransfer, roFileSystem and roRegistrySection are all main-thread only,
-' and only one transfer may be in flight at a time on this thread.
+import "roku_modules/rokurequests/Requests.brs"
+import "config.bs"
 
-' ---------------------------------------------------------------- settings
+function getVideoList(page as integer) as dynamic
+    url = API_BASE + "/videos?page=" + page.ToStr()
 
-function ApiLoadSettings() as Object
-    settings = {
-        baseUrl: DEFAULT_BASE_URL,
-        allowInsecure: false
-    }
-    section = CreateObject("roRegistrySection", REGISTRY_SECTION)
-    if section.Exists(KEY_BASE_URL) then
-        settings.baseUrl = ApiNormalizeBaseUrl(section.Read(KEY_BASE_URL))
-    end if
-    if section.Exists(KEY_INSECURE) then
-        settings.allowInsecure = ApiIsTrue(section.Read(KEY_INSECURE))
-    end if
-    return settings
-end function
+    print "URL: "; url
 
-' Writes are all-or-nothing across a Flush. A value equal to the compiled-in
-' default is removed rather than stored, so upgrading the channel with a new
-' DEFAULT_BASE_URL also moves existing installs to the new default.
-sub ApiSaveSettings(m as Object) as void
-    section = CreateObject("roRegistrySection", REGISTRY_SECTION)
-    if m.baseUrl = DEFAULT_BASE_URL then
-        if section.Exists(KEY_BASE_URL) then
-            section.Delete(KEY_BASE_URL)
-        end if
-    else
-        section.Write(KEY_BASE_URL, m.baseUrl)
-    end if
-    ' ifRegistrySection.Write only accepts a string, hence "true" rather than
-    ' a boolean here - ApiIsTrue reads it back.
-    if m.allowInsecure then
-        section.Write(KEY_INSECURE, "true")
-    else
-        if section.Exists(KEY_INSECURE) then
-            section.Delete(KEY_INSECURE)
-        end if
-    end if
-    section.Flush()
-end sub
+    r = rokurequests_Requests().get(url)
 
-function ApiNormalizeBaseUrl(raw as Dynamic) as String
-    text = ApiTrim(ApiString(raw))
-    if text = "" then
-        return DEFAULT_BASE_URL
-    end if
-    if InStr(1, LCase(text), "://") = 0 then
-        text = "http://" + text
-    end if
-    while Len(text) > 0 and Right(text, 1) = "/"
-        text = Left(text, Len(text) - 1)
-    end while
-    if text = "" or text = "http://" or text = "https://" then
-        return DEFAULT_BASE_URL
-    end if
-    return text
-end function
-
-' Roku has Trim() at runtime but BrighterScript does not know it, and the only
-' alternative is a declaration file for one line of code.
-function ApiTrim(raw as Dynamic) as String
-    text = ApiString(raw)
-    first = 1
-    last = Len(text)
-    while first <= last and ApiIsSpace(Mid(text, first, 1))
-        first = first + 1
-    end while
-    while last >= first and ApiIsSpace(Mid(text, last, 1))
-        last = last - 1
-    end while
-    if last < first then
-        return ""
-    end if
-    return Mid(text, first, last - first + 1)
-end function
-
-function ApiIsSpace(character as String) as Boolean
-    return character = " " or character = Chr(9) or character = Chr(10) or character = Chr(13)
-end function
-
-' ------------------------------------------------------------------- TLS
-
-' Build a transfer already pointed at this port, with TLS settled. Roku
-' replaces (rather than extends) the system trust store, so this is chosen per
-' request: a private CA is only safe to install when every request in the
-' session is going to the same private host.
-function ApiBuildTransfer(m as Object, wantEvents as Boolean) as Object
-    transfer = CreateObject("roUrlTransfer")
-    if transfer = invalid then
+    if r = invalid
         return invalid
     end if
-    ApiApplyTls(m, transfer)
-    if wantEvents then
-        ' Only the page request reports back. The watch POST is fire and forget
-        ' and is given NO port, so it cannot produce an event that the page
-        ' handler might mistake for its own reply - which is all the identity
-        ' dance in MainHandleUrlEvent used to achieve.
-        transfer.setMessagePort(m.port)
-    end if
-    return transfer
-end function
 
-sub ApiApplyTls(m as Object, transfer as Object) as void
-    if m.allowInsecure then
-        ' Last resort, and only ever opt-in: no chain validation and no
-        ' hostname check. Fine on a trusted LAN, useless as a default.
-        transfer.EnablePeerVerification(false)
-        transfer.EnableHostVerification(false)
-    else if ApiIsLanUrl(m.baseUrl) and ApiFileExists(LAN_CA_PATH) then
-        transfer.SetCertificatesFile(LAN_CA_PATH)
-    else
-        transfer.SetCertificatesFile(SYSTEM_CA_PATH)
-    end if
-end sub
-
-function ApiFileExists(path as String) as Boolean
-    fs = CreateObject("roFileSystem")
-    if fs = invalid then
-        return false
-    end if
-    return fs.Exists(path)
-end function
-
-function ApiUrlHost(url as String) as String
-    rest = url
-    mark = InStr(1, rest, "://")
-    if mark > 0 then
-        rest = Mid(rest, mark + 3)
-    end if
-    mark = InStr(1, rest, "/")
-    if mark > 0 then
-        rest = Left(rest, mark - 1)
-    end if
-    mark = InStr(1, rest, ":")
-    if mark > 0 then
-        rest = Left(rest, mark - 1)
-    end if
-    ' LCase(), not rest.toLower(). BrighterScript lowers by wrapping the value in
-    ' an roString and calling a method that does not exist on this firmware, so
-    ' it dies with "Member function not found" (&hf4) the moment a URL is parsed.
-    ' LCase is native BrightScript and needs no wrapper.
-    return LCase(rest)
-end function
-
-' True for loopback, RFC1918, link-local and the usual ".local"/".lan" names.
-' Used only to decide which CA bundle to install.
-function ApiIsLanUrl(url as String) as Boolean
-    return ApiIsLanHost(ApiUrlHost(url))
-end function
-
-function ApiIsLanHost(host as String) as Boolean
-    if host = "" then
-        return false
-    end if
-    if host = "localhost" then
-        return true
-    end if
-    parts = ApiHostLabels(host)
-    count = parts.Count()
-    if count >= 4 and ApiIsDigits(parts[0]) then
-        first = StrToI(parts[0])
-        second = StrToI(parts[1])
-        if first = 10 or first = 127 then
-            return true
-        end if
-        if first = 192 and second = 168 then
-            return true
-        end if
-        if first = 172 and second >= 16 and second <= 31 then
-            return true
-        end if
-        if first = 169 and second = 254 then
-            return true
-        end if
-    end if
-    if count < 2 then
-        return false
-    end if
-    suffix = parts[count - 1]
-    return suffix = "local" or suffix = "lan" or suffix = "home" or suffix = "internal"
-end function
-
-' The dotted labels of a host, in order. Same reasoning as ApiTrim: this is only
-' ever used to recognise a LAN host, so it is not worth a declaration file.
-function ApiHostLabels(host as String) as Object
-    labels = CreateObject("roArray", 0, true)
-    start = 1
-    while start <= Len(host) + 1
-        mark = InStr(start, host, ".")
-        if mark = 0 then
-            labels.Push(Mid(host, start))
-            exit while
-        end if
-        labels.Push(Mid(host, start, mark - start))
-        start = mark + 1
-    end while
-    return labels
-end function
-
-function ApiIsDigits(value as Dynamic) as Boolean
-    text = ApiString(value)
-    if text = "" then
-        return false
-    end if
-    for i = 1 to Len(text)
-        if InStr("0123456789", Mid(text, i, 1)) = 0 then
-            return false
-        end if
-    end for
-    return true
-end function
-
-' ------------------------------------------------------------------ URLs
-
-function ApiListUrl(m as Object, mode as String, page as Integer, query as String) as String
-    pageText = ApiNumStr(page)
-    if mode = MODE_PINS then
-        return m.baseUrl + "/api/pins?page=" + pageText
-    end if
-    if mode = MODE_SEARCH then
-        return m.baseUrl + "/api/search?q=" + ApiEscape(m, query) + "&page=" + pageText
-    end if
-    return m.baseUrl + "/api/videos?page=" + pageText
-end function
-
-function ApiWatchUrl(m as Object, videoId as String) as String
-    return m.baseUrl + "/api/watch/" + videoId
-end function
-
-' The master playlist. Its URL is stable but its body is not: the route mints a
-' fresh signed proxy token on every request, which is what makes a plain retry
-' worth attempting after a stale-segment failure.
-function ApiPlaylistUrl(m as Object, videoId as String) as String
-    return m.baseUrl + "/api/m3u8/" + videoId + "?resolution=" + PLAYBACK_RESOLUTION
-end function
-
-function ApiEscape(m as Object, text as String) as String
-    transfer = CreateObject("roUrlTransfer")
-    if transfer = invalid then
-        return text
-    end if
-    return transfer.Escape(text)
-end function
-
-' ------------------------------------------------------------------ JSON
-
-' The four list routes all return the same bare array of VideoListEntry, so one
-' parser covers videos, pins and search. Non-string values are coerced rather
-' than rejected, and entries with no id are dropped - a poster without an id
-' is not playable.
-function ApiParseList(body as String) as Object
-    result = {
-        ok: false,
-        ' CreateObject, not [] - see the note in main.bs: BrighterScript leaves
-        ' array literals alone, so [] would be a parse error on the device.
-        items: CreateObject("roArray", 0, true),
-        reason: "invalid_response"
-    }
-    parsed = invalid
-    try
-        parsed = ParseJson(body)
-    catch parseError
-        parsed = invalid
-    end try
-    if Type(parsed) <> "roArray" then
-        return result
-    end if
-    for each entry in parsed
-        item = ApiToItem(entry)
-        if item <> invalid then
-            result.items.Push(item)
-        end if
-    end for
-    result.ok = true
-    return result
-end function
-
-function ApiToItem(entry as Dynamic) as Object
-    if Type(entry) <> "roAssociativeArray" then
+    if not r.ok
         return invalid
     end if
-    id = ApiField(entry, "id")
-    if id = "" then
+
+    return r.json
+end function
+
+function submitWatch(id as string) as dynamic
+    url = API_BASE + "/watch/" + id
+
+    r = rokurequests_Requests().post(url, {})
+
+    if r = invalid
         return invalid
     end if
-    return {
-        id: id,
-        title: ApiField(entry, "title"),
-        thumbnail: ApiField(entry, "thumbnail"),
-        channel: ApiField(entry, "channel"),
-        channelName: ApiField(entry, "channelName")
-    }
+
+    if not r.ok
+        return invalid
+    end if
+    
+    return r.json
 end function
 
-function ApiField(entry as Object, key as String) as String
-    if Type(entry) <> "roAssociativeArray" then
-        return ""
-    end if
-    if not entry.DoesExist(key) then
-        return ""
-    end if
-    return ApiString(entry[key])
-end function
-
-function ApiString(value as Dynamic) as String
-    if value = invalid then
-        return ""
-    end if
-    valueType = type(value)
-    if valueType = "roString" or valueType = "String" then
-        return value
-    end if
-    if valueType = "roInt" or valueType = "Integer" or valueType = "roFloat" or valueType = "Float" or valueType = "roDouble" or valueType = "Double" then
-        return ApiNumStr(value)
-    end if
-    return ""
-end function
-
-' Str() on a positive number yields a LEADING SPACE (" 42"), which is exactly
-' the kind of thing that turns into a malformed query string, hence the Trim.
-' This replaces .toStr() everywhere: like toLower(), BrighterScript implements
-' toStr() by wrapping the value in an roString, and that wrapper's methods are
-' not present on this firmware.
-function ApiNumStr(value as Dynamic) as String
-    return ApiTrim(Str(value))
-end function
-
-function ApiIsTrue(value as Dynamic) as Boolean
-    valueType = type(value)
-    if valueType = "roBoolean" or valueType = "Boolean" then
-        return value = true
-    end if
-    if valueType = "roInt" or valueType = "Integer" then
-        return value = 1
-    end if
-    text = LCase(ApiTrim(ApiString(value)))
-    return text = "true" or text = "1" or text = "yes" or text = "on"
-end function

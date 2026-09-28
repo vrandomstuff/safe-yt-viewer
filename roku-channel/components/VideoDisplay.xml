@@ -1,0 +1,35 @@
+<component name="VideoDisplay" extends="Group">
+    <interface>
+        <field id="itemContent" type="node" />
+        <field id="action" type="string" />
+    </interface>
+
+    <children>
+        <Poster
+                id="thumbnail"
+                width="420"
+                height="236"
+                translation="[40, 15]"
+                focusable="true"
+        />
+
+        <Label
+            id="title"
+            width="420"
+            height="55"
+            translation="[40, 260]"
+            wrap="true"
+            color="0xFFFFFFFF"
+            font="font:MediumSystemFont"
+        />
+
+        <Poster
+                id="avatar"
+                width="60"
+                height="60"
+                translation="[48, 183]"
+        />
+    </children>
+
+    <script type="text/brighterscript" uri="VideoDisplay.bs" />
+</component>

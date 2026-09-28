@@ -1,6 +1,6 @@
 title=Safe YT Viewer
 major_version=1
 minor_version=0
-build_version=2
+build_version=3
 mm_icon_focus_sd=pkg:/images/icon.png
 mm_icon_focus_hd=pkg:/images/icon.png

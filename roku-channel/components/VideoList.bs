@@ -1,0 +1,111 @@
+import "pkg:/source/api.bs"
+import "pkg:/source/video.bs"
+
+sub init()
+    m.top.grid = m.top.findNode("grid")
+    m.top.page = 1
+    m.top.videos = []
+    m.nextRowForNextPage = 19
+    m.task = CreateObject("roSGNode", "VideoListTask")
+    m.task.page = m.top.page
+    m.task.observeField("result", "onVideoListResult")
+    m.task.control = "run"
+
+    m.top.grid.observeField("itemFocused", "nextPage")
+    
+    
+end sub
+
+sub nextPage()
+    row = Int(m.top.grid.itemFocused / m.top.grid.numColumns)
+    
+    if row > m.nextRowForNextPage
+        m.nextRowForNextPage += 19
+        print(m.top.page)
+        m.top.page += 1
+        m.task = CreateObject("roSGNode", "VideoListTask")
+        m.task.page = m.top.page
+        m.task.observeField("result", "onVideoListResultAppend")
+        m.task.control = "run"
+    
+    end if
+end sub
+
+sub onVideoListResult()
+    videos = m.top.videos
+
+    for each item in m.task.result
+        print item.id
+        videos.Push(item)
+    end for
+
+    m.top.videos = videos
+
+    print(m.top.videos[0].id)
+    ' 25
+    loadVideos(m.top.videos)
+    if m.nextRowForNextPage = 19
+        m.top.grid.setFocus(true)
+    end if
+end sub
+sub onVideoListResultAppend()
+    videos = m.top.videos
+
+    for each item in m.task.result
+        print item.id
+        videos.Push(item)
+    end for
+
+    m.top.videos = videos
+
+    loadVideosAppend(m.top.videos)
+end sub
+sub loadVideos(videos as object)
+    content = CreateObject("roSGNode", "ContentNode")
+    m.content = content
+    for each video in videos
+        item = content.CreateChild("VideoContent")
+
+        item.videoId = video.id
+        item.thumbnail = video.thumbnail
+        item.channelId = video.channel
+        item.channelAvatar = video.channelAvatar
+        item.channelName = video.channelName
+        item.title = video.title
+    end for
+
+    m.top.grid.content = content
+end sub
+sub loadVideosAppend(videos as object)
+    content = m.content
+    for each video in m.task.result
+        item = content.CreateChild("VideoContent")
+
+        item.videoId = video.id
+        item.thumbnail = video.thumbnail
+        item.channelId = video.channel
+        item.channelAvatar = video.channelAvatar
+        item.channelName = video.channelName
+        item.title = video.title
+    end for
+end sub
+function onKeyEvent(key as String, press as Boolean) as Boolean
+    if press
+        selected = m.top.grid.content.getChild(m.top.grid.itemFocused)
+        if key = "OK"
+            playVideo(selected.videoId, selected.title)
+            
+            return true
+        else if key = "options"
+            print selected.channelName
+
+            return true
+        else if key = "play"
+            STOP
+        else if key = "down"
+            
+        end if
+    end if
+
+    return false
+end function

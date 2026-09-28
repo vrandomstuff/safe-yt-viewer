@@ -1,0 +1,7 @@
+sub init()
+    m.top.functionName = "submitWatchTask"
+end sub
+
+sub submitWatchTask()
+    submitWatch(m.top.vId)
+end sub

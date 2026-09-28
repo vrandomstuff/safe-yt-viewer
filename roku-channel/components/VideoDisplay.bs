@@ -1,0 +1,37 @@
+sub init()
+    m.thumbnail = m.top.findNode("thumbnail")
+    m.title = m.top.findNode("title")
+    m.avatar = m.top.findNode("avatar")
+
+    m.top.observeField("itemContent", "onVideoChanged")
+end sub
+
+
+sub onVideoChanged()
+    video = m.top.itemContent
+
+    if video = invalid
+        return
+    end if
+
+    m.thumbnail.uri = video.thumbnail
+    m.title.text = video.title
+    m.avatar.uri = video.channelAvatar
+end sub
+
+
+' function onKeyEvent(key as string, press as boolean) as boolean
+'     if not press
+'         return false
+'     end if
+' 
+'     if key = "OK"
+'         m.top.action = "watch"
+'         return true
+'     else if key = "options"
+'         m.top.action = "channel"
+'         return true
+'     end if
+' 
+'     return false
+' end function

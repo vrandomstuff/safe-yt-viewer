@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8" ?>
+
+<component name="VideoListTask" extends="Task">
+    <interface>
+        <field id="page" type="integer" />
+        <field id="result" type="array" />
+    </interface>
+
+    <script type="text/brightscript" uri="pkg:/source/api.bs" />
+    <script type="text/brightscript" uri="VideoListTask.bs" />
+</component>

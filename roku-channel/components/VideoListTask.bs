@@ -1,0 +1,7 @@
+sub init()
+    m.top.functionName = "fetchVideoList"
+end sub
+
+sub fetchVideoList()
+    m.top.result = getVideoList(m.top.page)
+end sub

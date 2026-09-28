@@ -1,11 +1,14 @@
 {
-    "rootDir": ".",
-    "files": [
-        "manifest",
-        "source/**/*.*",
-        "components/**/*.*",
-        "images/**/*.*"
-    ],
-    "outFile": "./out/roku-channel.zip",
-    "createPackage": true
+	"rootDir": ".",
+	"sourceDirs": ["source", "source/roku_modules/rokurequests", "components"],
+	"files": [
+		"manifest",
+		"components/**/*.xml",
+		"components/**/*.bs",
+		"components/**/*.brs",
+		"source/**/*.bs",
+		"source/**/*.brs",
+		"images/**/*"
+	],
+	"outFile": "out/roku_channel.zip"
 }

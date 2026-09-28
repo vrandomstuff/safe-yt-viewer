@@ -1,0 +1,49 @@
+sub init()
+    m.videoElement = m.top.findNode("videoElement")
+
+    m.top.observeField("content", "keepContentInSyncWithVideo")
+    m.top.observeField("control", "keepControlInSyncWithVideo")
+    m.videoElement.observeField("state", "keepStateInSyncWithVideo")
+    m.isVideoPaused = false
+end sub
+
+sub keepContentInSyncWithVideo()
+    m.videoElement.content = m.top.content
+end sub
+
+sub keepControlInSyncWithVideo()
+    m.videoElement.control = m.top.control
+end sub
+
+sub keepStateInSyncWithVideo()
+    m.top.state = m.videoElement.state
+end sub
+
+function onKeyEvent(key as String, press as Boolean) as Boolean
+    if press
+        if key = "back"
+            destroySelf()
+            return true
+        else if key = "play" or key = "ok"
+            if m.isVideoPaused
+                m.videoElement.control = "resume"
+                m.isVideoPaused = false
+            else
+                m.videoElement.control = "pause"
+                m.isVideoPaused = true
+            end if
+            return true
+        end if
+    end if
+
+    return false
+end function
+
+sub destroySelf()
+    m.videoElement.control = "stop"
+    parent = m.top.getParent()
+    if parent <> invalid
+        parent.grid.setFocus(true)
+        parent.removeChild(m.top)
+    end if
+end sub
